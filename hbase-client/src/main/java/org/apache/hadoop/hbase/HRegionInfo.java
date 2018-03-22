@@ -61,6 +61,7 @@ import org.apache.hadoop.io.DataInputBuffer;
  * <li> regionId    : A timestamp when the region is created. </li>
  * <li> replicaId   : An id starting from 0 to differentiate replicas of the same region range
  * but hosted in separated servers. The same region range can be hosted in multiple locations.</li>
+ * 一个region可能被多个RegionServer托管，使用replicaId来区分
  * <li> encodedName : An MD5 encoded string for the region name.</li>
  * </ul>
  *
@@ -70,6 +71,9 @@ import org.apache.hadoop.io.DataInputBuffer;
  * <li> split       : Whether the region is split </li>
  * <li> offline     : Whether the region is offline </li>
  * </ul>
+ *
+ * 在0.98以及之前版本，一个region同时只能被一个RegionServer托管，
+ * 到0.99+之后，一个region可能被多个RegionServer托管
  *
  * In 0.98 or before, a list of table's regions would fully cover the total keyspace, and at any
  * point in time, a row key always belongs to a single region, which is hosted in a single server.
@@ -82,6 +86,9 @@ import org.apache.hadoop.io.DataInputBuffer;
 @InterfaceStability.Evolving
 public class HRegionInfo implements Comparable<HRegionInfo> {
   /*
+  HRegionInfo.VERSION：代表数据结构版本
+  HConstants.META_VERSION：代表序列化方式
+
    * There are two versions associated with HRegionInfo: HRegionInfo.VERSION and
    * HConstants.META_VERSION. HRegionInfo.VERSION indicates the data structure's versioning
    * while HConstants.META_VERSION indicates the versioning of the serialized HRIs stored in
@@ -114,6 +121,9 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * in the filesystem.
    *
    * New region name format:
+   * tablename,startkey,regionId.encodedName
+   * regionId：region创建时的时间戳
+   *
    *    &lt;tablename>,,&lt;startkey>,&lt;regionIdTimestamp>.&lt;encodedName>.
    * where,
    *    &lt;encodedName> is a hex version of the MD5 hash of

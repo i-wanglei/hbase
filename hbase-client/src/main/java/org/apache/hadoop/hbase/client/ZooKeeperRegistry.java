@@ -102,6 +102,7 @@ class ZooKeeperRegistry implements Registry {
     ZooKeeperKeepAliveConnection zkw = null;
     try {
       zkw = hci.getKeepAliveZooKeeperWatcher();
+      // 获取clusterId
       this.clusterId = ZKClusterId.readClusterIdZNode(zkw);
       if (this.clusterId == null) {
         LOG.info("ClusterId read in ZooKeeper is null");
@@ -134,6 +135,7 @@ class ZooKeeperRegistry implements Registry {
     }
   }
 
+  // 获取当前活着的RegionServer数量
   @Override
   public int getCurrentNrHRS() throws IOException {
     ZooKeeperKeepAliveConnection zkw = hci.getKeepAliveZooKeeperWatcher();

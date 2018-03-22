@@ -57,6 +57,7 @@ public class RegionReplicaUtil {
    * @return an HRegionInfo object corresponding to the same range (table, start and
    * end key), but for the given replicaId.
    */
+  // 一个region可能被多个RegionServer托管，使用replicaId来区分
   public static HRegionInfo getRegionInfoForReplica(HRegionInfo regionInfo, int replicaId) {
     if (regionInfo.getReplicaId() == replicaId) {
       return regionInfo;

@@ -483,6 +483,7 @@ public class MetaTableLocator {
     RegionState.State state = RegionState.State.OPEN;
     ServerName serverName = null;
     try {
+      // 获取meta-region-server zNode信息
       byte[] data = ZKUtil.getData(zkw, zkw.getZNodeForReplica(replicaId));
       if (data != null && data.length > 0 && ProtobufUtil.isPBMagicPrefix(data)) {
         try {
@@ -557,7 +558,7 @@ public class MetaTableLocator {
     List<ServerName> servers = new ArrayList<ServerName>();
     // Make the blocking call first so that we do the wait to know
     // the znodes are all in place or timeout.
-    ServerName server = blockUntilAvailable(zkw, timeout);
+    ServerName server = blockUntilAvailable(zkw, timeout);//阻塞
     if (server == null) return null;
     servers.add(server);
 
@@ -569,7 +570,7 @@ public class MetaTableLocator {
     }
     for (int replicaId = 1; replicaId < numReplicasConfigured; replicaId++) {
       // return all replica locations for the meta
-      servers.add(getMetaRegionLocation(zkw, replicaId));
+      servers.add(getMetaRegionLocation(zkw, replicaId));//非阻塞
     }
     return servers;
   }

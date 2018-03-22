@@ -212,6 +212,7 @@ public class ConnectionFactory {
   throws IOException {
     if (user == null) {
       UserProvider provider = UserProvider.instantiate(conf);
+      // 类似Hadoop UGI
       user = provider.getCurrent();
     }
 

@@ -87,9 +87,11 @@ public class ServerName implements Comparable<ServerName>, Serializable {
    */
   public static final String UNKNOWN_SERVERNAME = "#unknown#";
 
+  // 唯一代表一个服务：hostnameOnly,port,startcode
   private final String servername;
   private final String hostnameOnly;
   private final int port;
+  // 服务启动时间戳
   private final long startcode;
 
   /**
