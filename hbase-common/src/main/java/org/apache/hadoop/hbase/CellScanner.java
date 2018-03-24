@@ -48,6 +48,7 @@ import org.apache.hadoop.hbase.Cell;
  * <p>Often used reading {@link org.apache.hadoop.hbase.Cell}s written by
  * {@link org.apache.hadoop.hbase.io.CellOutputStream}.
  */
+// 类似于Java的Iterator
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
 public interface CellScanner {

@@ -1250,7 +1250,7 @@ public class RpcClientImpl extends AbstractRpcClient {
     }
 
     while (!call.done) {
-      if (call.checkAndSetTimeout()) {
+      if (call.checkAndSetTimeout()) { // 检查是否超时
         if (cts != null) connection.callSender.remove(cts);
         break;
       }
@@ -1261,7 +1261,7 @@ public class RpcClientImpl extends AbstractRpcClient {
       try {
         synchronized (call) {
           if (call.done) break;
-          call.wait(Math.min(call.remainingTime(), 1000) + 1);
+          call.wait(Math.min(call.remainingTime(), 1000) + 1);// 阻塞等待结果
         }
       } catch (InterruptedException e) {
         call.setException(new InterruptedIOException());
@@ -1270,6 +1270,7 @@ public class RpcClientImpl extends AbstractRpcClient {
       }
     }
 
+    // 封装异常
     if (call.error != null) {
       if (call.error instanceof RemoteException) {
         call.error.fillInStackTrace();
