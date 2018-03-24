@@ -120,16 +120,13 @@ public class HRegionInfo implements Comparable<HRegionInfo> {
    * The encoded name also serves as the directory name for the region
    * in the filesystem.
    *
-   * New region name format:
-   * tablename,startkey,regionId.encodedName
-   * regionId：region创建时的时间戳
-   *
+   * New region name format: tablename,startkey,regionId.encodedName (regionId：region创建时的时间戳)
    *    &lt;tablename>,,&lt;startkey>,&lt;regionIdTimestamp>.&lt;encodedName>.
    * where,
    *    &lt;encodedName> is a hex version of the MD5 hash of
    *    &lt;tablename>,&lt;startkey>,&lt;regionIdTimestamp>
    *
-   * The old region name format:
+   * The old region name format: tablename,startkey,regionId
    *    &lt;tablename>,&lt;startkey>,&lt;regionIdTimestamp>
    * For region names in the old format, the encoded name is a 32-bit
    * JenkinsHash integer value (in its decimal notation, string form).

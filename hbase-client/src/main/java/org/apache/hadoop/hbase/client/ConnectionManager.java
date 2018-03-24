@@ -1284,6 +1284,7 @@ class ConnectionManager {
           Result regionInfoRow = null;
           ReversedClientScanner rcs = null;
           try {
+            // 通过meta表查询数据表region所在的位置
             rcs = new ClientSmallReversedScanner(conf, s, TableName.META_TABLE_NAME, this,
               rpcCallerFactory, rpcControllerFactory, getMetaLookupPool(), 0);
             regionInfoRow = rcs.next();
@@ -1303,6 +1304,7 @@ class ConnectionManager {
             throw new IOException("HRegionInfo was null in " +
               tableName + ", row=" + regionInfoRow);
           }
+          // 检查region信息
           HRegionInfo regionInfo = locations.getRegionLocation(replicaId).getRegionInfo();
           if (regionInfo == null) {
             throw new IOException("HRegionInfo was null or empty in " +
@@ -1324,7 +1326,7 @@ class ConnectionManager {
             throw new RegionOfflineException("the region is offline, could" +
               " be caused by a disable table call: " + regionInfo.getRegionNameAsString());
           }
-
+          // 检查RS状态
           ServerName serverName = locations.getRegionLocation(replicaId).getServerName();
           if (serverName == null) {
             throw new NoServerForRegionException("No server address listed in " +

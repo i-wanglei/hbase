@@ -145,6 +145,7 @@ public class MasterAddressTracker extends ZooKeeperNodeTracker {
   throws KeeperException, IOException {
     byte [] data;
     try {
+      // 通过ZK获取master地址
       data = ZKUtil.getData(zkw, zkw.getMasterAddressZNode());
     } catch (InterruptedException e) {
       throw new InterruptedIOException();

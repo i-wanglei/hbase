@@ -58,6 +58,7 @@ class ZooKeeperRegistry implements Registry {
       if (LOG.isTraceEnabled()) {
         LOG.trace("Looking up meta region location in ZK," + " connection=" + this);
       }
+      // 从ZK获取meta所在的服务器信息
       List<ServerName> servers = new MetaTableLocator().blockUntilAvailable(zkw, hci.rpcTimeout,
           hci.getConfiguration());
       if (LOG.isTraceEnabled()) {
@@ -78,6 +79,7 @@ class ZooKeeperRegistry implements Registry {
       HRegionLocation[] locs = new HRegionLocation[servers.size()];
       int i = 0;
       for (ServerName server : servers) {
+        // meta表只有一个region：HRegionInfo.FIRST_META_REGIONINFO
         HRegionInfo h = RegionReplicaUtil.getRegionInfoForReplica(
                 HRegionInfo.FIRST_META_REGIONINFO, i);
         if (server == null) locs[i++] = null;

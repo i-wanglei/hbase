@@ -77,6 +77,7 @@ public abstract class RegionServerCallable<T> implements RetryingCallable<T> {
       throw new TableNotEnabledException(tableName.getNameAsString() + " is disabled.");
     }
     try (RegionLocator regionLocator = connection.getRegionLocator(tableName)) {
+      // 获取region位置信息
       this.location = regionLocator.getRegionLocation(row);
     }
     if (this.location == null) {
