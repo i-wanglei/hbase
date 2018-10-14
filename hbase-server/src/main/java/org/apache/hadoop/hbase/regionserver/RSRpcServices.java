@@ -2749,17 +2749,18 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       checkOpen();
       requestCount.increment();
       rpcMutateRequestCount.increment();
-      region = getRegion(request.getRegion());
+      region = getRegion(request.getRegion()); // 获取region
       MutateResponse.Builder builder = MutateResponse.newBuilder();
       MutationProto mutation = request.getMutation();
       if (!region.getRegionInfo().isMetaRegion()) {
-        regionServer.cacheFlusher.reclaimMemStoreMemory();
+        regionServer.cacheFlusher.reclaimMemStoreMemory(); // 从大到小强制flush region
       }
       long nonceGroup = request.hasNonceGroup() ? request.getNonceGroup() : HConstants.NO_NONCE;
       Result r = null;
       Boolean processed = null;
       type = mutation.getMutateType();
 
+      // TODOWXY: quota，了解一下这个功能
       quota = getRpcQuotaManager().checkQuota(region, OperationQuota.OperationType.MUTATE);
       spaceQuotaEnforcement = getSpaceQuotaManager().getActiveEnforcements();
 
@@ -2774,7 +2775,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           break;
         case PUT:
           Put put = ProtobufUtil.toPut(mutation, cellScanner);
-          checkCellSizeLimit(region, put);
+          checkCellSizeLimit(region, put); // cell 大小是否超过限制
           // Throws an exception when violated
           spaceQuotaEnforcement.getPolicyEnforcement(region).check(put);
           quota.addMutation(put);
@@ -2795,7 +2796,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
             }
             if (processed == null) {
               boolean result = region.checkAndMutate(row, family,
-                qualifier, compareOp, comparator, timeRange, put);
+                qualifier, compareOp, comparator, timeRange, put); // TODOWXY: 之后再看
               if (region.getCoprocessorHost() != null) {
                 result = region.getCoprocessorHost().postCheckAndPut(row, family,
                   qualifier, compareOp, comparator, put, result);

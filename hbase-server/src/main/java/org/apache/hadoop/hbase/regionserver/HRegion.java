@@ -3230,7 +3230,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         RowLock rowLock = null;
         try {
           // if atomic then get exclusive lock, else shared lock
-          rowLock = region.getRowLockInternal(mutation.getRow(), !isAtomic(), prevRowLock);
+          rowLock = region.getRowLockInternal(mutation.getRow(), !isAtomic(), prevRowLock); // 获取行锁
         } catch (TimeoutIOException | InterruptedIOException e) {
           // NOTE: We will retry when other exceptions, but we should stop if we receive
           // TimeoutIOException or InterruptedIOException as operation has timed out or
@@ -3853,7 +3853,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           this.writeRequestsCount.add(batchOp.size());
           // validate and prepare batch for write, for MutationBatchOperation it also calls CP
           // prePut()/ preDelete() hooks
-          batchOp.checkAndPrepare();
+          batchOp.checkAndPrepare();// TODOWXY: 之后细看
           initialized = true;
         }
         doMiniBatchMutate(batchOp);
@@ -3882,7 +3882,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     try {
       // STEP 1. Try to acquire as many locks as we can and build mini-batch of operations with
       // locked rows
-      miniBatchOp = batchOp.lockRowsAndBuildMiniBatch(acquiredRowLocks);
+      miniBatchOp = batchOp.lockRowsAndBuildMiniBatch(acquiredRowLocks); // 获取行锁
 
       // We've now grabbed as many mutations off the list as we can
       // Ensure we acquire at least one.
@@ -4216,6 +4216,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (this.getRegionInfo().isMetaRegion()) return;
 
     MemStoreSize mss = this.memStoreSizing.getMemStoreSize();
+    // 是否需要触发强制flush
     if (mss.getHeapSize() + mss.getOffHeapSize() > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
       requestFlush();
@@ -8176,7 +8177,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (this.closing.get()) {
       throw new NotServingRegionException(getRegionInfo().getRegionNameAsString() + " is closing");
     }
-    lock(lock.readLock());
+    lock(lock.readLock()); // region 加读锁?
     if (this.closed.get()) {
       lock.readLock().unlock();
       throw new NotServingRegionException(getRegionInfo().getRegionNameAsString() + " is closed");
