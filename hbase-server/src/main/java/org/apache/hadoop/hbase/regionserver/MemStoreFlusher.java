@@ -270,7 +270,7 @@ class MemStoreFlusher implements FlushRequester {
               server.getRegionServerAccounting().getGlobalMemStoreOffHeapSize(), "", 1) +
             " memstore heap size=" + TraditionalBinaryPrefix.long2String(
               server.getRegionServerAccounting().getGlobalMemStoreHeapSize(), "", 1));
-        flushedOne = refreshStoreFilesAndReclaimMemory(bestRegionReplica);
+        flushedOne = refreshStoreFilesAndReclaimMemory(bestRegionReplica); // 刷新 store file ?
         if (!flushedOne) {
           LOG.info("Excluding secondary region " + bestRegionReplica +
               " - trying to find a different region to refresh files.");
@@ -343,7 +343,7 @@ class MemStoreFlusher implements FlushRequester {
               // we still select the regions based on the region's memstore data size.
               // TODO : If we want to decide based on heap over head it can be done without tracking
               // it per region.
-              if (!flushOneForGlobalPressure()) {
+              if (!flushOneForGlobalPressure()) { // flush 合适的 region
                 // Wasn't able to flush any region, but we're above low water mark
                 // This is unlikely to happen, but might happen when closing the
                 // entire server - another thread is flushing regions. We'll just
@@ -358,7 +358,7 @@ class MemStoreFlusher implements FlushRequester {
             continue;
           }
           FlushRegionEntry fre = (FlushRegionEntry) fqe;
-          if (!flushRegion(fre)) {
+          if (!flushRegion(fre)) { // flush 指定 region
             break;
           }
         } catch (InterruptedException ex) {
@@ -383,7 +383,7 @@ class MemStoreFlusher implements FlushRequester {
     }
   }
 
-
+  // 添加到flushQueue
   private void wakeupFlushThread() {
     if (wakeupPending.compareAndSet(false, true)) {
       flushQueue.add(WAKEUPFLUSH_INSTANCE);
@@ -433,7 +433,7 @@ class MemStoreFlusher implements FlushRequester {
 
   private boolean refreshStoreFilesAndReclaimMemory(Region region) {
     try {
-      return region.refreshStoreFiles();
+      return region.refreshStoreFiles(); //TODOWXY: 有时间再看
     } catch (IOException e) {
       LOG.warn("Refreshing store files failed with exception", e);
     }

@@ -2760,7 +2760,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       Boolean processed = null;
       type = mutation.getMutateType();
 
-      // TODOWXY: quota，了解一下这个功能
+      // 对用户、表的QPS和请求大小进行限制
       quota = getRpcQuotaManager().checkQuota(region, OperationQuota.OperationType.MUTATE);
       spaceQuotaEnforcement = getSpaceQuotaManager().getActiveEnforcements();
 

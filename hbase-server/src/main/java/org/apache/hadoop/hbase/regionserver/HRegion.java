@@ -2239,7 +2239,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         numMutationsWithoutWAL.reset();
         dataInMemoryWithoutWAL.reset();
       }
-      synchronized (writestate) {
+      synchronized (writestate) { // 当前是否正在flush
         if (!writestate.flushing && writestate.writesEnabled) {
           this.writestate.flushing = true;
         } else {
@@ -2260,7 +2260,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         Collection<HStore> specificStoresToFlush =
             forceFlushAllStores ? stores.values() : flushPolicy.selectStoresToFlush();
         FlushResultImpl fs =
-            internalFlushcache(specificStoresToFlush, status, writeFlushRequestWalMarker, tracker);
+            internalFlushcache(specificStoresToFlush, status, writeFlushRequestWalMarker, tracker); // flush 逻辑
 
         if (coprocessorHost != null) {
           status.setStatus("Running post-flush coprocessor hooks");
@@ -2395,6 +2395,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   protected FlushResultImpl internalFlushcache(WAL wal, long myseqid,
       Collection<HStore> storesToFlush, MonitoredTask status, boolean writeFlushWalMarker,
       FlushLifeCycleTracker tracker) throws IOException {
+    // TODOWXY: 有时间细看
     PrepareFlushResult result =
         internalPrepareFlushCache(wal, myseqid, storesToFlush, status, writeFlushWalMarker, tracker);
     if (result.result == null) {
