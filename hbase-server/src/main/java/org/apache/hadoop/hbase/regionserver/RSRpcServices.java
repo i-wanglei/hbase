@@ -2753,7 +2753,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       MutateResponse.Builder builder = MutateResponse.newBuilder();
       MutationProto mutation = request.getMutation();
       if (!region.getRegionInfo().isMetaRegion()) {
-        regionServer.cacheFlusher.reclaimMemStoreMemory(); // 从大到小强制flush region
+        regionServer.cacheFlusher.reclaimMemStoreMemory(); // 达到RS内存限制，从大到小强制flush，会阻塞
       }
       long nonceGroup = request.hasNonceGroup() ? request.getNonceGroup() : HConstants.NO_NONCE;
       Result r = null;

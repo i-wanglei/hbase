@@ -463,7 +463,7 @@ class MemStoreFlusher implements FlushRequester {
         // queue. It'll come out near immediately.
         FlushRegionEntry fqe = new FlushRegionEntry(r, forceFlushAllStores, tracker);
         this.regionsInQueue.put(r, fqe);
-        this.flushQueue.add(fqe);
+        this.flushQueue.add(fqe);// 添加到flushQueue中，等待FlushHandler执行
       } else {
         tracker.notExecuted("Flush already requested on " + r);
       }
@@ -699,7 +699,7 @@ class MemStoreFlusher implements FlushRequester {
         boolean interrupted = false;
         try {
           flushType = isAboveHighWaterMark();
-          while (flushType != FlushType.NORMAL && !server.isStopped()) {
+          while (flushType != FlushType.NORMAL && !server.isStopped()) { // 阻塞flush，直到低于RS内存限制
             server.cacheFlusher.setFlushType(flushType);
             if (!blocked) {
               startTime = EnvironmentEdgeManager.currentTime();
@@ -729,7 +729,7 @@ class MemStoreFlusher implements FlushRequester {
             try {
               // we should be able to wait forever, but we've seen a bug where
               // we miss a notify, so put a 5 second bound on it at least.
-              blockSignal.wait(5 * 1000);
+              blockSignal.wait(5 * 1000); // 阻塞等待flush
             } catch (InterruptedException ie) {
               LOG.warn("Interrupted while waiting");
               interrupted = true;

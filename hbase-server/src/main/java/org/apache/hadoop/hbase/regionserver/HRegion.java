@@ -3858,7 +3858,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           initialized = true;
         }
         doMiniBatchMutate(batchOp);
-        requestFlushIfNeeded();
+        requestFlushIfNeeded(); // 如果达到memstore大小，请求flush
       }
     } finally {
       batchOp.closeRegionOperation();
@@ -4217,10 +4217,10 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (this.getRegionInfo().isMetaRegion()) return;
 
     MemStoreSize mss = this.memStoreSizing.getMemStoreSize();
-    // 是否需要触发强制flush
+    // 如果region的memstore大小，达到blockingMemStoreSize(默认为MemStoreSize的4倍)，将会抛异常
     if (mss.getHeapSize() + mss.getOffHeapSize() > this.blockingMemStoreSize) {
       blockedRequestsCount.increment();
-      requestFlush();
+      requestFlush(); // 请求flush
       // Don't print current limit because it will vary too much. The message is used as a key
       // over in RetriesExhaustedWithDetailsException processing.
       throw new RegionTooBusyException("Over memstore limit=" +
