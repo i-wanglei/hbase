@@ -693,7 +693,7 @@ class MemStoreFlusher implements FlushRequester {
     if (flushType != FlushType.NORMAL) {
       TraceUtil.addTimelineAnnotation("Force Flush. We're above high water mark.");
       long start = EnvironmentEdgeManager.currentTime();
-      synchronized (this.blockSignal) {
+      synchronized (this.blockSignal) { // 阻塞此RS上的所有其他region
         boolean blocked = false;
         long startTime = 0;
         boolean interrupted = false;
