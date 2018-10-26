@@ -49,6 +49,7 @@ public class RegionSizeCalculator {
   /**
    * Maps each region to its size in bytes.
    * */
+  // 表所有region的大小map: <regionName,regionSize>
   private final Map<byte[], Long> sizeMap = new TreeMap<>(Bytes.BYTES_COMPARATOR);
 
   static final String ENABLE_REGIONSIZECALCULATOR = "hbase.regionsizecalculator.enable";

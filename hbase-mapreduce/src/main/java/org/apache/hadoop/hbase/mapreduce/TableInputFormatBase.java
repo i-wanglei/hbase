@@ -233,13 +233,15 @@ public abstract class TableInputFormatBase
    * @see org.apache.hadoop.mapreduce.InputFormat#getSplits(
    *   org.apache.hadoop.mapreduce.JobContext)
    */
+  // 默认一个region一个split
+  // 可根据 hbase.mapreduce.tableinput.mappers.per.region 和 hbase.mapreduce.tif.input.autobalance 调整
   @Override
   public List<InputSplit> getSplits(JobContext context) throws IOException {
     boolean closeOnFinish = false;
 
     // Just in case a subclass is relying on JobConfigurable magic.
     if (table == null) {
-      initialize(context);
+      initialize(context); // 初始化表连接
       closeOnFinish = true;
     }
 
@@ -254,14 +256,14 @@ public abstract class TableInputFormatBase
     }
 
     try {
-      List<InputSplit> splits = oneInputSplitPerRegion();
+      List<InputSplit> splits = oneInputSplitPerRegion(); // 一个region一个split
 
       // set same number of mappers for each region
       if (context.getConfiguration().get(NUM_MAPPERS_PER_REGION) != null) {
         int nSplitsPerRegion = context.getConfiguration().getInt(NUM_MAPPERS_PER_REGION, 1);
         List<InputSplit> res = new ArrayList<>();
         for (int i = 0; i < splits.size(); i++) {
-          List<InputSplit> tmp = createNInputSplitsUniform(splits.get(i), nSplitsPerRegion);
+          List<InputSplit> tmp = createNInputSplitsUniform(splits.get(i), nSplitsPerRegion); // 一个region对应多个split
           res.addAll(tmp);
         }
         return res;
@@ -271,7 +273,7 @@ public abstract class TableInputFormatBase
       if (context.getConfiguration().getBoolean(MAPREDUCE_INPUT_AUTOBALANCE, false)) {
         long maxAveRegionSize = context.getConfiguration()
             .getLong(MAX_AVERAGE_REGION_SIZE, 8L*1073741824); //8GB
-        return calculateAutoBalancedSplits(splits, maxAveRegionSize);
+        return calculateAutoBalancedSplits(splits, maxAveRegionSize); // 根据region大小重新分配split
       }
 
       // return one mapper per region
@@ -291,13 +293,13 @@ public abstract class TableInputFormatBase
    */
   private List<InputSplit> oneInputSplitPerRegion() throws IOException {
     RegionSizeCalculator sizeCalculator =
-        new RegionSizeCalculator(getRegionLocator(), getAdmin());
+        new RegionSizeCalculator(getRegionLocator(), getAdmin()); // 每个region的大小
 
     TableName tableName = getTable().getName();
 
-    Pair<byte[][], byte[][]> keys = getStartEndKeys();
+    Pair<byte[][], byte[][]> keys = getStartEndKeys(); // 每个region的startKey和endKey
     if (keys == null || keys.getFirst() == null ||
-        keys.getFirst().length == 0) {
+        keys.getFirst().length == 0) { // 至少有一个region
       HRegionLocation regLoc =
           getRegionLocator().getRegionLocation(HConstants.EMPTY_BYTE_ARRAY, false);
       if (null == regLoc) {
@@ -325,10 +327,10 @@ public abstract class TableInputFormatBase
           (stopRow.length == 0 ||
               Bytes.compareTo(stopRow, keys.getFirst()[i]) > 0)) {
         byte[] splitStart = startRow.length == 0 ||
-            Bytes.compareTo(keys.getFirst()[i], startRow) >= 0 ?
+            Bytes.compareTo(keys.getFirst()[i], startRow) >= 0 ? // startKey 哪个大用哪个
             keys.getFirst()[i] : startRow;
         byte[] splitStop = (stopRow.length == 0 ||
-            Bytes.compareTo(keys.getSecond()[i], stopRow) <= 0) &&
+            Bytes.compareTo(keys.getSecond()[i], stopRow) <= 0) && // stopKey 哪个小用哪个
             keys.getSecond()[i].length > 0 ?
             keys.getSecond()[i] : stopRow;
 
@@ -340,7 +342,7 @@ public abstract class TableInputFormatBase
         }
         InetAddress regionAddress = isa.getAddress();
         String regionLocation;
-        regionLocation = reverseDNS(regionAddress);
+        regionLocation = reverseDNS(regionAddress); // region 地址
 
         byte[] regionName = location.getRegionInfo().getRegionName();
         String encodedRegionName = location.getRegionInfo().getEncodedName();
