@@ -695,7 +695,7 @@ public class FSHLog extends AbstractFSWAL<Writer> {
     SyncFuture syncFuture = getSyncFuture(sequence);
     try {
       RingBufferTruck truck = this.disruptor.getRingBuffer().get(sequence);
-      truck.load(syncFuture);
+      truck.load(syncFuture); //
     } finally {
       this.disruptor.getRingBuffer().publish(sequence);
     }
@@ -955,7 +955,7 @@ public class FSHLog extends AbstractFSWAL<Writer> {
               // Return to keep processing events coming off the ringbuffer
               return;
             }
-            append(entry);
+            append(entry); // 写hlog
           } catch (Exception e) {
             // Failed append. Record the exception.
             this.exception = e;

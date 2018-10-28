@@ -358,9 +358,9 @@ public class WALEdit implements HeapSize {
       // Add all Cells first and then at end, add the family rather than call {@link #add(Cell)}
       // and have it clone family each time. Optimization!
       for (int i = 0; i < listSize; i++) {
-        addCell(e.getValue().get(i));
+        addCell(e.getValue().get(i)); // 添加cell
       }
-      addFamily(e.getKey());
+      addFamily(e.getKey()); // 添加Family
     }
   }
 

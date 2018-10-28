@@ -306,7 +306,7 @@ public abstract class AbstractMemStore implements MemStore {
   private void internalAdd(final Cell toAdd, final boolean mslabUsed, MemStoreSizing memstoreSizing) {
     active.add(toAdd, mslabUsed, memstoreSizing);
     setOldestEditTimeToNow();
-    checkActiveSize();
+    checkActiveSize(); // 是否需要flushInMemory
   }
 
   private void setOldestEditTimeToNow() {

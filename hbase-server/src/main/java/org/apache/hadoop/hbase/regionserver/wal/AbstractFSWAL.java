@@ -716,7 +716,7 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
         if (closed) {
           throw new IOException("WAL has been closed");
         } else {
-          syncFuture.get(walSyncTimeoutNs);
+          syncFuture.get(walSyncTimeoutNs); // 阻塞等待sync完成
         }
       }
     } catch (TimeoutIOException tioe) {
@@ -925,7 +925,7 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
         i.visitLogEntryBeforeWrite(entry.getKey(), entry.getEdit());
       }
     }
-    doAppend(writer, entry);
+    doAppend(writer, entry); // TODOWXY: 写hlog，之后细看
     assert highestUnsyncedTxid < entry.getTxid();
     highestUnsyncedTxid = entry.getTxid();
     sequenceIdAccounting.update(encodedRegionName, entry.getFamilyNames(), regionSequenceId,
@@ -972,6 +972,7 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
           "Cannot append; log is closed, regionName = " + hri.getRegionNameAsString());
     }
     MutableLong txidHolder = new MutableLong();
+    // MVCC
     MultiVersionConcurrencyControl.WriteEntry we = key.getMvcc().begin(() -> {
       txidHolder.setValue(ringBuffer.next());
     });
@@ -979,9 +980,9 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
     try (TraceScope scope = TraceUtil.createTrace(implClassName + ".append")) {
       FSWALEntry entry = new FSWALEntry(txid, key, edits, hri, inMemstore);
       entry.stampRegionSequenceId(we);
-      ringBuffer.get(txid).load(entry);
+      ringBuffer.get(txid).load(entry); // 设置event
     } finally {
-      ringBuffer.publish(txid);
+      ringBuffer.publish(txid); // 向ringBuffer发布event
     }
     return txid;
   }

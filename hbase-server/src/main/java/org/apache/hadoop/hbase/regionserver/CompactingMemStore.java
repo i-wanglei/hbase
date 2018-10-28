@@ -526,6 +526,7 @@ public class CompactingMemStore extends AbstractMemStore {
   * It takes the updatesLock exclusively, pushes active into the pipeline, releases updatesLock
   * and compacts the pipeline.
   */
+  // TODOWXY: 需细看
   private class InMemoryFlushRunnable implements Runnable {
 
     @Override

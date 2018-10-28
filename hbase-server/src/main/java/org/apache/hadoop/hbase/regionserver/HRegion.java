@@ -2975,7 +2975,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // read lock, resources may run out.  For now, the thought is that this
     // will be extremely rare; we'll deal with it when it happens.
     checkResources();
-    startRegionOperation(Operation.PUT);
+    startRegionOperation(Operation.PUT); // 申请region的读锁
     try {
       // All edits for the given row (across all column families) must happen atomically.
       doBatchMutate(put);
@@ -3102,12 +3102,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         if (isInReplay() || getMutation(index).getDurability() == Durability.SKIP_WAL) {
           region.updateSequenceId(familyCellMaps[index].values(), writeNumber);
         }
-        applyFamilyMapToMemStore(familyCellMaps[index], memStoreAccounting);
+        applyFamilyMapToMemStore(familyCellMaps[index], memStoreAccounting); // 添加到memstore中(跳表)
         return true;
       });
       // update memStore size
       region.incMemStoreSize(memStoreAccounting.getDataSize(), memStoreAccounting.getHeapSize(),
-          memStoreAccounting.getOffHeapSize());
+          memStoreAccounting.getOffHeapSize()); // 更新memstore大小信息：RS、region
     }
 
     public boolean isDone() {
@@ -3215,11 +3215,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         List<RowLock> acquiredRowLocks) throws IOException {
       int readyToWriteCount = 0;
       int lastIndexExclusive = 0;
-      RowLock prevRowLock = null;
-      for (; lastIndexExclusive < size(); lastIndexExclusive++) {
+      RowLock prevRowLock = null; // 成功获取的上一个RowLock
+      for (; lastIndexExclusive < size(); lastIndexExclusive++) { // 获取所有行锁？
         // It reaches the miniBatchSize, stop here and process the miniBatch
         // This only applies to non-atomic batch operations.
-        if (!isAtomic() && (readyToWriteCount == region.miniBatchSize)) {
+        if (!isAtomic() && (readyToWriteCount == region.miniBatchSize)) { // 达到miniBatch的上限
           break;
         }
 
@@ -3243,7 +3243,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             throw ioe;
           }
         }
-        if (rowLock == null) {
+        if (rowLock == null) { // rowLock==null 好像不会发生
           // We failed to grab another lock
           if (isAtomic()) {
             throw new IOException("Can't apply all operations atomically!");
@@ -3310,7 +3310,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               walEdit.add(cell);
             }
           }
-          walEdit.add(familyCellMaps[index]);
+          walEdit.add(familyCellMaps[index]); // 把cell加到WALEdit中
 
           return true;
         }
@@ -3466,7 +3466,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       visitBatchOperations(true, miniBatchOp.getLastIndexExclusive(), (int index) -> {
         Mutation mutation = getMutation(index);
         if (mutation instanceof Put) {
-          region.updateCellTimestamps(familyCellMaps[index].values(), byteTS);
+          region.updateCellTimestamps(familyCellMaps[index].values(), byteTS); // 更新所有cell的timestamp？
           miniBatchOp.incrementNumOfPuts();
         } else {
           region.prepareDeleteTimestamps(mutation, familyCellMaps[index], byteTS);
@@ -3842,13 +3842,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    */
   OperationStatus[] batchMutate(BatchOperation<?> batchOp) throws IOException {
     boolean initialized = false;
-    batchOp.startRegionOperation();
+    batchOp.startRegionOperation(); // 申请region的读锁，在put方法中已经申请过读锁，为何要重复申请？
     try {
       while (!batchOp.isDone()) {
         if (!batchOp.isInReplay()) {
           checkReadOnly();
         }
-        checkResources();
+        checkResources(); // 检查region是否需要flush
 
         if (!initialized) {
           this.writeRequestsCount.add(batchOp.size());
@@ -3892,6 +3892,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         return;
       }
 
+      // 申请加读锁，当flush时加写锁？
       lock(this.updatesLock.readLock(), miniBatchOp.getReadyToWriteCount());
       locked = true;
 
@@ -3899,7 +3900,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // We should record the timestamp only after we have acquired the rowLock,
       // otherwise, newer puts/deletes are not guaranteed to have a newer timestamp
       long now = EnvironmentEdgeManager.currentTime();
-      batchOp.prepareMiniBatchOperations(miniBatchOp, now, acquiredRowLocks);
+      batchOp.prepareMiniBatchOperations(miniBatchOp, now, acquiredRowLocks); // TODOWXY: 再细看
 
       // STEP 3. Build WAL edit
       List<Pair<NonceKey, WALEdit>> walEdits = batchOp.buildWALEdits(miniBatchOp);
@@ -3911,6 +3912,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         NonceKey nonceKey = nonceKeyWALEditPair.getFirst();
 
         if (walEdit != null && !walEdit.isEmpty()) {
+          // 写hlog
           writeEntry = doWALAppend(walEdit, batchOp.durability, batchOp.getClusterIds(), now,
               nonceKey.getNonceGroup(), nonceKey.getNonce(), batchOp.getOrigLogSeqNum());
         }
@@ -3938,7 +3940,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       if (locked) {
         this.updatesLock.readLock().unlock();
       }
-      releaseRowLocks(acquiredRowLocks);
+      releaseRowLocks(acquiredRowLocks); // 释放行锁
 
       final int finalLastIndexExclusive =
           miniBatchOp != null ? miniBatchOp.getLastIndexExclusive() : batchOp.size();
@@ -5651,6 +5653,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // Keep trying until we have a lock or error out.
       // TODO: do we need to add a time component here?
       while (result == null) {
+        // 获取rowkey的rowLockContext对象，如果lockedRows map中没有，则创建一个新的，否则返回老的
         rowLockContext = computeIfAbsent(lockedRows, rowKey, () -> new RowLockContext(rowKey));
         // Now try an get the lock.
         // This can fail as
@@ -5659,11 +5662,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           // to acquire the same read lock. It simply returns the previous row lock.
           RowLockImpl prevRowLockImpl = (RowLockImpl)prevRowLock;
           if ((prevRowLockImpl != null) && (prevRowLockImpl.getLock() ==
-              rowLockContext.readWriteLock.readLock())) {
+              rowLockContext.readWriteLock.readLock())) { // 如果之前已经获取了这行的读锁，则直接返回
             success = true;
             return prevRowLock;
           }
-          result = rowLockContext.newReadLock();
+          result = rowLockContext.newReadLock(); // 获取锁
         } else {
           result = rowLockContext.newWriteLock();
         }
@@ -5673,7 +5676,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       boolean reachDeadlineFirst = false;
       Optional<RpcCall> call = RpcServer.getCurrentCall();
       if (call.isPresent()) {
-        long deadline = call.get().getDeadline();
+        long deadline = call.get().getDeadline(); // rpcCall DeadLine 功能
         if (deadline < Long.MAX_VALUE) {
           int timeToDeadline = (int) (deadline - System.currentTimeMillis());
           if (timeToDeadline <= this.rowLockWaitDuration) {
@@ -5683,7 +5686,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
       }
 
-      if (timeout <= 0 || !result.getLock().tryLock(timeout, TimeUnit.MILLISECONDS)) {
+      if (timeout <= 0 || !result.getLock().tryLock(timeout, TimeUnit.MILLISECONDS)) { // 尝试加锁
         TraceUtil.addTimelineAnnotation("Failed to get row lock");
         String message = "Timed out waiting for lock for row: " + rowKey + " in region "
             + getRegionInfo().getEncodedName();
@@ -5716,7 +5719,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     } finally {
       // Clean up the counts just in case this was the thing keeping the context alive.
       if (!success && rowLockContext != null) {
-        rowLockContext.cleanUp();
+        rowLockContext.cleanUp(); // 如果获取锁失败，则从lockedRows移除这个rowLockContext的相关信息
       }
     }
   }
@@ -5778,7 +5781,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         synchronized (lock) {
           if (count.get() <= 0 && usable.get()){ // Don't attempt to remove row if already removed
             usable.set(false);
-            RowLockContext removed = lockedRows.remove(row);
+            RowLockContext removed = lockedRows.remove(row); // 从lockedRows map中移除自己
             assert removed == this: "we should never remove a different context";
           }
         }
@@ -7685,15 +7688,15 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     WriteEntry writeEntry = null;
     try {
-      long txid = this.wal.append(this.getRegionInfo(), walKey, walEdit, true);
+      long txid = this.wal.append(this.getRegionInfo(), walKey, walEdit, true); // 添加到ringBuffer队列
       // Call sync on our edit.
       if (txid != 0) {
-        sync(txid, durability);
+        sync(txid, durability); // 等待sync完成
       }
       writeEntry = walKey.getWriteEntry();
     } catch (IOException ioe) {
       if (walKey != null && walKey.getWriteEntry() != null) {
-        mvcc.complete(walKey.getWriteEntry());
+        mvcc.complete(walKey.getWriteEntry()); // TODOWXY: MVCC单独细看
       }
       throw ioe;
     }
@@ -8178,7 +8181,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (this.closing.get()) {
       throw new NotServingRegionException(getRegionInfo().getRegionNameAsString() + " is closing");
     }
-    lock(lock.readLock()); // region 加读锁?
+    lock(lock.readLock()); // 申请加读锁，当close region的时候会申请加写锁
     if (this.closed.get()) {
       lock.readLock().unlock();
       throw new NotServingRegionException(getRegionInfo().getRegionNameAsString() + " is closed");
