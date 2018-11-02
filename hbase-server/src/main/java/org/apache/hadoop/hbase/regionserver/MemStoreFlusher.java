@@ -153,7 +153,7 @@ class MemStoreFlusher implements FlushRequester {
    * flush thread)
    * @return true if successful
    */
-  private boolean flushOneForGlobalPressure() {
+  private boolean flushOneForGlobalPressure() { // 当RS memstore总大小超过低水位时，选择合适的region进行flush，直到低于低水位
     SortedMap<Long, HRegion> regionsBySize = null;
     switch(flushType) {
       case ABOVE_OFFHEAP_HIGHER_MARK:
@@ -333,9 +333,9 @@ class MemStoreFlusher implements FlushRequester {
         FlushQueueEntry fqe = null;
         try {
           wakeupPending.set(false); // allow someone to wake us up again
-          fqe = flushQueue.poll(threadWakeFrequency, TimeUnit.MILLISECONDS);
+          fqe = flushQueue.poll(threadWakeFrequency, TimeUnit.MILLISECONDS); // 默认最多等10s
           if (fqe == null || fqe == WAKEUPFLUSH_INSTANCE) {
-            FlushType type = isAboveLowWaterMark(); // 是否达到RS内存限制
+            FlushType type = isAboveLowWaterMark(); // 是否超过RS内存低水位
             if (type != FlushType.NORMAL) {
               LOG.debug("Flush thread woke up because memory above low water="
                   + TraditionalBinaryPrefix.long2String(
@@ -504,6 +504,7 @@ class MemStoreFlusher implements FlushRequester {
     }
   }
 
+  // 启动flushHandler线程
   synchronized void start(UncaughtExceptionHandler eh) {
     ThreadFactory flusherThreadFactory = Threads.newDaemonThreadFactory(
         server.getServerName().toShortString() + "-MemStoreFlusher", eh);
@@ -550,7 +551,7 @@ class MemStoreFlusher implements FlushRequester {
       } else {
         // store file过多，延迟flush，并提交compaction请求
         // 可能会引起memstore堆积，以至于达到内存上限，触发强制flush？
-        // TODOWXY: memstore 是否有上限，如果达到上限，怎么办？会阻塞写请求？
+        // TODOWXY: memstore 是否有上限(好像skipList本身没有容量限制)，如果达到上限，怎么办？会阻塞写请求？
 
         // If this is first time we've been put off, then emit a log message.
         if (fqe.getRequeueCount() <= 0) {
@@ -661,7 +662,7 @@ class MemStoreFlusher implements FlushRequester {
 
   private void wakeUpIfBlocking() {
     synchronized (blockSignal) {
-      blockSignal.notifyAll();
+      blockSignal.notifyAll(); // 唤醒由于达到RS内存高水位，而阻塞的线程
     }
   }
 
@@ -705,8 +706,8 @@ class MemStoreFlusher implements FlushRequester {
         long startTime = 0;
         boolean interrupted = false;
         try {
-          flushType = isAboveHighWaterMark();
-          while (flushType != FlushType.NORMAL && !server.isStopped()) { // 阻塞flush，直到低于RS内存限制
+          flushType = isAboveHighWaterMark(); // 是否高于RS内存高水位
+          while (flushType != FlushType.NORMAL && !server.isStopped()) { // 阻塞flush，直到低于RS内存低水位
             server.cacheFlusher.setFlushType(flushType);
             if (!blocked) {
               startTime = EnvironmentEdgeManager.currentTime();

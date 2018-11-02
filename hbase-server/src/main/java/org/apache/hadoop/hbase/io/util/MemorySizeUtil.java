@@ -178,7 +178,7 @@ public class MemorySizeUtil {
             + " Going with on heap global memstore size ('" + MEMSTORE_SIZE_KEY + "')");
       }
     }
-    return new Pair<>(getOnheapGlobalMemStoreSize(conf), MemoryType.HEAP);
+    return new Pair<>(getOnheapGlobalMemStoreSize(conf), MemoryType.HEAP); // 堆内内存上限，默认为堆内存的40%
   }
 
   /**
@@ -189,11 +189,11 @@ public class MemorySizeUtil {
    */
   public static long getOnheapGlobalMemStoreSize(Configuration conf) {
     long max = -1L;
-    final MemoryUsage usage = safeGetHeapMemoryUsage();
+    final MemoryUsage usage = safeGetHeapMemoryUsage(); // 堆内存大小
     if (usage != null) {
       max = usage.getMax();
     }
-    float globalMemStorePercent = getGlobalMemStoreHeapPercent(conf, true);
+    float globalMemStorePercent = getGlobalMemStoreHeapPercent(conf, true); // 默认为0.4
     return ((long) (max * globalMemStorePercent));
   }
 

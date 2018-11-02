@@ -2993,7 +2993,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     protected final OperationStatus[] retCodeDetails;
     protected final WALEdit[] walEditsFromCoprocessors;
     // reference family cell maps directly so coprocessors can mutate them if desired
-    protected final Map<byte[], List<Cell>>[] familyCellMaps;
+    protected final Map<byte[], List<Cell>>[] familyCellMaps; // < cf, list<Cell> >
 
     protected final HRegion region;
     protected int nextIndexToProcess = 0;
@@ -3325,7 +3325,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         final MiniBatchOperationInProgress<Mutation> miniBatchOp, final WriteEntry writeEntry)
         throws IOException {
       if (writeEntry != null) {
-        region.mvcc.completeAndWait(writeEntry);
+        region.mvcc.completeAndWait(writeEntry); // 等待readPoint到达本次的writePoint(writeEntry.getWriteNumber())
+                                                 // 这是否意味着，region的写操作必须顺序完成
       }
     }
 
@@ -3347,7 +3348,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         byte[] family = e.getKey();
         List<Cell> cells = e.getValue();
         assert cells instanceof RandomAccess;
-        region.applyToMemStore(region.getStore(family), cells, false, memstoreAccounting);
+        region.applyToMemStore(region.getStore(family), cells, false, memstoreAccounting); // 添加到每个store的memstore中
       }
     }
   }
@@ -3510,7 +3511,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         final MiniBatchOperationInProgress<Mutation> miniBatchOp, @Nullable WriteEntry writeEntry)
         throws IOException {
       if (writeEntry == null) {
-        writeEntry = region.mvcc.begin();
+        writeEntry = region.mvcc.begin(); // 开启新的writePoint
       }
       super.writeMiniBatchOperationsToMemStore(miniBatchOp, writeEntry.getWriteNumber());
       return writeEntry;

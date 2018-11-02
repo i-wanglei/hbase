@@ -49,7 +49,7 @@ public class RegionServerAccounting {
 
   public RegionServerAccounting(Configuration conf) {
     Pair<Long, MemoryType> globalMemstoreSizePair = MemorySizeUtil.getGlobalMemStoreSize(conf);
-    this.globalMemStoreLimit = globalMemstoreSizePair.getFirst();
+    this.globalMemStoreLimit = globalMemstoreSizePair.getFirst(); // 可能是堆内也可能是堆外
     this.memType = globalMemstoreSizePair.getSecond();
     this.globalMemStoreLimitLowMarkPercent =
         MemorySizeUtil.getGlobalMemStoreHeapLowerMark(conf, this.memType == MemoryType.HEAP); // 默认为0.95
@@ -64,7 +64,7 @@ public class RegionServerAccounting {
     // "hbase.regionserver.global.memstore.lowerLimit". Can get rid of this boolean passing then.
     this.globalMemStoreLimitLowMark =
         (long) (this.globalMemStoreLimit * this.globalMemStoreLimitLowMarkPercent);
-    this.globalOnHeapMemstoreLimit = MemorySizeUtil.getOnheapGlobalMemStoreSize(conf);
+    this.globalOnHeapMemstoreLimit = MemorySizeUtil.getOnheapGlobalMemStoreSize(conf); // 堆内内存总大小
     this.globalOnHeapMemstoreLimitLowMark =
         (long) (this.globalOnHeapMemstoreLimit * this.globalMemStoreLimitLowMarkPercent);
   }

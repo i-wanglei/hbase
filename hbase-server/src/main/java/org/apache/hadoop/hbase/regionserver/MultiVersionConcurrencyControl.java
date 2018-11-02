@@ -74,10 +74,10 @@ public class MultiVersionConcurrencyControl {
   public void advanceTo(long newStartPoint) {
     while (true) {
       long seqId = this.getWritePoint();
-      if (seqId >= newStartPoint) {
+      if (seqId >= newStartPoint) { // 如果currentWritePoint >= newStartPoint，则不需要设置新的point？
         break;
       }
-      if (this.tryAdvanceTo(newStartPoint, seqId)) {
+      if (this.tryAdvanceTo(newStartPoint, seqId)) { // 尝试设置新的point，直到成功
         break;
       }
     }
@@ -95,11 +95,11 @@ public class MultiVersionConcurrencyControl {
     synchronized (writeQueue) {
       long currentRead = this.readPoint.get();
       long currentWrite = this.writePoint.get();
-      if (currentRead != currentWrite) {
+      if (currentRead != currentWrite) { // currentRead和currentWrite需要一样？
         throw new RuntimeException("Already used this mvcc; currentRead=" + currentRead +
           ", currentWrite=" + currentWrite + "; too late to tryAdvanceTo");
       }
-      if (expected != NONE && expected != currentRead) {
+      if (expected != NONE && expected != currentRead) { // expected应该等于NONE或者currentRead
         return false;
       }
 
@@ -117,7 +117,7 @@ public class MultiVersionConcurrencyControl {
    * Call {@link #begin(Runnable)} with an empty {@link Runnable}.
    */
   public WriteEntry begin() {
-    return begin(() -> {});
+    return begin(() -> {}); // 开启新的writePoint
   }
 
   /**
@@ -134,7 +134,7 @@ public class MultiVersionConcurrencyControl {
    */
   public WriteEntry begin(Runnable action) {
     synchronized (writeQueue) {
-      long nextWriteNumber = writePoint.incrementAndGet();
+      long nextWriteNumber = writePoint.incrementAndGet(); // 新的writePoint
       WriteEntry e = new WriteEntry(nextWriteNumber);
       writeQueue.add(e);
       action.run();
@@ -148,7 +148,7 @@ public class MultiVersionConcurrencyControl {
    */
   public void await() {
     // Add a write and then wait on reads to catch up to it.
-    completeAndWait(begin());
+    completeAndWait(begin()); // 等待readPoint，到达当前最新的writePoint
   }
 
   /**
@@ -160,7 +160,7 @@ public class MultiVersionConcurrencyControl {
    */
   public void completeAndWait(WriteEntry e) {
     if (!complete(e)) {
-      waitForRead(e);
+      waitForRead(e); // 等待readPoint到达e.getWriteNumber()
     }
   }
 
@@ -178,7 +178,7 @@ public class MultiVersionConcurrencyControl {
    *
    * @return true if e is visible to MVCC readers (that is, readpoint >= e.writeNumber)
    */
-  public boolean complete(WriteEntry writeEntry) {
+  public boolean complete(WriteEntry writeEntry) { // 每complete成功一次，readPoint都会向前进
     synchronized (writeQueue) {
       writeEntry.markCompleted();
       long nextReadValue = NONE;
@@ -188,7 +188,7 @@ public class MultiVersionConcurrencyControl {
         WriteEntry queueFirst = writeQueue.getFirst();
 
         if (nextReadValue > 0) {
-          if (nextReadValue + 1 != queueFirst.getWriteNumber()) {
+          if (nextReadValue + 1 != queueFirst.getWriteNumber()) { // writeQueue中WriteEntry的writeNumber，应该是顺序递增的
             throw new RuntimeException("Invariant in complete violated, nextReadValue="
                 + nextReadValue + ", writeNumber=" + queueFirst.getWriteNumber());
           }
@@ -208,7 +208,7 @@ public class MultiVersionConcurrencyControl {
 
       if (nextReadValue > 0) {
         synchronized (readWaiters) {
-          readPoint.set(nextReadValue);
+          readPoint.set(nextReadValue); // 设置新的readPoint
           readWaiters.notifyAll();
         }
       }
@@ -223,7 +223,7 @@ public class MultiVersionConcurrencyControl {
     boolean interrupted = false;
     int count = 0;
     synchronized (readWaiters) {
-      while (readPoint.get() < e.getWriteNumber()) {
+      while (readPoint.get() < e.getWriteNumber()) { // 等待readPoint到达e.getWriteNumber()
         if (count % 100 == 0 && count > 0) {
           LOG.warn("STUCK: " + this);
         }
