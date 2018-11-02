@@ -174,11 +174,11 @@ class MemStoreFlusher implements FlushRequester {
     while (!flushedOne) {
       // Find the biggest region that doesn't have too many storefiles (might be null!)
       HRegion bestFlushableRegion =
-          getBiggestMemStoreRegion(regionsBySize, excludedRegions, true);
+          getBiggestMemStoreRegion(regionsBySize, excludedRegions, true); // memstore最大，且hfile数没达到上限
       // Find the biggest region, total, even if it might have too many flushes.
-      HRegion bestAnyRegion = getBiggestMemStoreRegion(regionsBySize, excludedRegions, false);
+      HRegion bestAnyRegion = getBiggestMemStoreRegion(regionsBySize, excludedRegions, false); // memstore最大
       // Find the biggest region that is a secondary region
-      HRegion bestRegionReplica = getBiggestMemStoreOfRegionReplica(regionsBySize, excludedRegions);
+      HRegion bestRegionReplica = getBiggestMemStoreOfRegionReplica(regionsBySize, excludedRegions); // memstore最大，且有多个replica，但没判是否正在flush
       if (bestAnyRegion == null) {
         // If bestAnyRegion is null, assign replica. It may be null too. Next step is check for null
         bestAnyRegion = bestRegionReplica;
@@ -208,7 +208,8 @@ class MemStoreFlusher implements FlushRequester {
           bestAnyRegionSize = bestAnyRegion.getMemStoreDataSize();
           bestFlushableRegionSize = getMemStoreDataSize(bestFlushableRegion);
       }
-      if (bestAnyRegionSize > 2 * bestFlushableRegionSize) {
+      // 选出适合的region进行flush
+      if (bestAnyRegionSize > 2 * bestFlushableRegionSize) { // 即使副本数达到上限，但是region size太大了
         // Even if it's not supposed to be flushed, pick a region if it's more than twice
         // as big as the best flushable one - otherwise when we're under pressure we make
         // lots of little flushes and cause lots of compactions, etc, which just makes
@@ -270,7 +271,7 @@ class MemStoreFlusher implements FlushRequester {
               server.getRegionServerAccounting().getGlobalMemStoreOffHeapSize(), "", 1) +
             " memstore heap size=" + TraditionalBinaryPrefix.long2String(
               server.getRegionServerAccounting().getGlobalMemStoreHeapSize(), "", 1));
-        flushedOne = refreshStoreFilesAndReclaimMemory(bestRegionReplica); // 刷新 store file ?
+        flushedOne = refreshStoreFilesAndReclaimMemory(bestRegionReplica); // 关闭有副本的region来减轻内存压力?
         if (!flushedOne) {
           LOG.info("Excluding secondary region " + bestRegionReplica +
               " - trying to find a different region to refresh files.");
@@ -287,7 +288,7 @@ class MemStoreFlusher implements FlushRequester {
                 server.getRegionServerAccounting().getGlobalMemStoreOffHeapSize(), "", 1) +
             ", Region memstore size=" +
             TraditionalBinaryPrefix.long2String(regionToFlushSize, "", 1));
-        flushedOne = flushRegion(regionToFlush, true, false, FlushLifeCycleTracker.DUMMY);
+        flushedOne = flushRegion(regionToFlush, true, false, FlushLifeCycleTracker.DUMMY); // flush选中的region
 
         if (!flushedOne) {
           LOG.info("Excluding unflushable region " + regionToFlush +
@@ -334,7 +335,7 @@ class MemStoreFlusher implements FlushRequester {
           wakeupPending.set(false); // allow someone to wake us up again
           fqe = flushQueue.poll(threadWakeFrequency, TimeUnit.MILLISECONDS);
           if (fqe == null || fqe == WAKEUPFLUSH_INSTANCE) {
-            FlushType type = isAboveLowWaterMark();
+            FlushType type = isAboveLowWaterMark(); // 是否达到RS内存限制
             if (type != FlushType.NORMAL) {
               LOG.debug("Flush thread woke up because memory above low water="
                   + TraditionalBinaryPrefix.long2String(
@@ -353,7 +354,7 @@ class MemStoreFlusher implements FlushRequester {
                 wakeUpIfBlocking();
               }
               // Enqueue another one of these tokens so we'll wake up again
-              wakeupFlushThread();
+              wakeupFlushThread(); // 再添加一个WAKEUPFLUSH_INSTANCE对象到queue中，直到 FlushType==NORMAL 为止
             }
             continue;
           }
@@ -541,12 +542,16 @@ class MemStoreFlusher implements FlushRequester {
   private boolean flushRegion(final FlushRegionEntry fqe) {
     HRegion region = fqe.region;
     if (!region.getRegionInfo().isMetaRegion() && isTooManyStoreFiles(region)) {
-      if (fqe.isMaximumWait(this.blockingWaitTime)) {
+      if (fqe.isMaximumWait(this.blockingWaitTime)) { // 是否达到最大延迟时间
         LOG.info("Waited " + (EnvironmentEdgeManager.currentTime() - fqe.createTime) +
           "ms on a compaction to clean up 'too many store files'; waited " +
           "long enough... proceeding with flush of " +
           region.getRegionInfo().getRegionNameAsString());
       } else {
+        // store file过多，延迟flush，并提交compaction请求
+        // 可能会引起memstore堆积，以至于达到内存上限，触发强制flush？
+        // TODOWXY: memstore 是否有上限，如果达到上限，怎么办？会阻塞写请求？
+
         // If this is first time we've been put off, then emit a log message.
         if (fqe.getRequeueCount() <= 0) {
           // Note: We don't impose blockingStoreFiles constraint on meta regions
@@ -555,6 +560,7 @@ class MemStoreFlusher implements FlushRequester {
               this.blockingWaitTime);
           if (!this.server.compactSplitThread.requestSplit(region)) {
             try {
+              // 提交compaction请求
               this.server.compactSplitThread.requestSystemCompaction(region,
                 Thread.currentThread().getName());
             } catch (IOException e) {
@@ -568,7 +574,7 @@ class MemStoreFlusher implements FlushRequester {
 
         // Put back on the queue.  Have it come back out of the queue
         // after a delay of this.blockingWaitTime / 100 ms.
-        this.flushQueue.add(fqe.requeue(this.blockingWaitTime / 100));
+        this.flushQueue.add(fqe.requeue(this.blockingWaitTime / 100)); // 重新放入flushQueue中
         // Tell a lie, it's not flushed but it's ok
         return true;
       }
@@ -604,13 +610,14 @@ class MemStoreFlusher implements FlushRequester {
     lock.readLock().lock();
     try {
       notifyFlushRequest(region, emergencyFlush);
+      // flush memstore
       FlushResult flushResult = region.flushcache(forceFlushAllStores, false, tracker);
       boolean shouldCompact = flushResult.isCompactionNeeded();
       // We just want to check the size
       boolean shouldSplit = region.checkSplit() != null;
-      if (shouldSplit) {
+      if (shouldSplit) { // 提交split请求
         this.server.compactSplitThread.requestSplit(region);
-      } else if (shouldCompact) {
+      } else if (shouldCompact) { // 提交compaction请求
         server.compactSplitThread.requestSystemCompaction(region, Thread.currentThread().getName());
       }
     } catch (DroppedSnapshotException ex) {
@@ -666,7 +673,7 @@ class MemStoreFlusher implements FlushRequester {
     }
 
     for (Store store : region.getStores()) {
-      if (store.hasTooManyStoreFiles()) {
+      if (store.hasTooManyStoreFiles()) { // 是否hfile数量过多
         return true;
       }
     }

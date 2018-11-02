@@ -985,12 +985,12 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     for (int i = 0; i < flushRetriesNumber; i++) {
       try {
         List<Path> pathNames =
-            flusher.flushSnapshot(snapshot, logCacheFlushId, status, throughputController, tracker);
+            flusher.flushSnapshot(snapshot, logCacheFlushId, status, throughputController, tracker); // 生成hfile
         Path lastPathName = null;
         try {
           for (Path pathName : pathNames) {
             lastPathName = pathName;
-            validateStoreFile(pathName);
+            validateStoreFile(pathName); // 验证一下这个hfile：打开并关闭
           }
           return pathNames;
         } catch (Exception e) {
@@ -1073,7 +1073,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     }
     HFileContext hFileContext = createFileContext(compression, includeMVCCReadpoint, includesTag,
       cryptoContext);
-    Path familyTempDir = new Path(fs.getTempDir(), family.getNameAsString());
+    Path familyTempDir = new Path(fs.getTempDir(), family.getNameAsString()); // region下的 .tmp 目录
     StoreFileWriter.Builder builder = new StoreFileWriter.Builder(conf, writerCacheConf,
         this.getFileSystem())
             .withOutputDir(familyTempDir)
@@ -1122,9 +1122,9 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
   private boolean updateStorefiles(List<HStoreFile> sfs, long snapshotId) throws IOException {
     this.lock.writeLock().lock();
     try {
-      this.storeEngine.getStoreFileManager().insertNewFiles(sfs);
+      this.storeEngine.getStoreFileManager().insertNewFiles(sfs); // 加入storefiles列表
       if (snapshotId > 0) {
-        this.memstore.clearSnapshot(snapshotId);
+        this.memstore.clearSnapshot(snapshotId); // 清理snapshot
       }
     } finally {
       // We need the lock, as long as we are updating the storeFiles
@@ -1135,7 +1135,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
       this.lock.writeLock().unlock();
     }
     // notify to be called here - only in case of flushes
-    notifyChangedReadersObservers(sfs);
+    notifyChangedReadersObservers(sfs); // 通知scanner TODOWXY: 之后细看
     if (LOG.isTraceEnabled()) {
       long totalSize = getTotalSize(sfs);
       String traceMessage = "FLUSH time,count,size,store size,store files ["
@@ -1143,7 +1143,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
           + "," + storeSize + "," + storeEngine.getStoreFileManager().getStorefileCount() + "]";
       LOG.trace(traceMessage);
     }
-    return needsCompaction();
+    return needsCompaction(); // 当前hfile数量大于minFilesToCompact，则需要compaction
   }
 
   /**
@@ -2221,7 +2221,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     @Override
     public MemStoreSize prepare() {
       // passing the current sequence number of the wal - to allow bookkeeping in the memstore
-      this.snapshot = memstore.snapshot();
+      this.snapshot = memstore.snapshot(); // 创建snapshot
       this.cacheFlushCount = snapshot.getCellsCount();
       this.cacheFlushSize = snapshot.getDataSize();
       committedFiles = new ArrayList<>(1);
@@ -2245,7 +2245,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
       List<HStoreFile> storeFiles = new ArrayList<>(this.tempFiles.size());
       for (Path storeFilePath : tempFiles) {
         try {
-          HStoreFile sf = HStore.this.commitFile(storeFilePath, cacheFlushSeqNum, status);
+          HStoreFile sf = HStore.this.commitFile(storeFilePath, cacheFlushSeqNum, status); // 从临时目录移动到目的目录
           outputFileSize += sf.getReader().length();
           storeFiles.add(sf);
         } catch (IOException ex) {
@@ -2254,11 +2254,11 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
           for (HStoreFile sf : storeFiles) {
             Path pathToDelete = sf.getPath();
             try {
-              sf.deleteStoreFile();
+              sf.deleteStoreFile(); // 如果发生异常，则把之前移动成功的文件删除
             } catch (IOException deleteEx) {
               LOG.error(HBaseMarkers.FATAL, "Failed to delete store file we committed, "
                   + "halting {}", pathToDelete, ex);
-              Runtime.getRuntime().halt(1);
+              Runtime.getRuntime().halt(1); // 如果删除发生异常，则shutdown
             }
           }
           throw new IOException("Failed to commit the flush", ex);
@@ -2277,7 +2277,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
       HStore.this.flushedOutputFileSize.addAndGet(outputFileSize);
 
       // Add new file to store files.  Clear snapshot too while we have the Store write lock.
-      return HStore.this.updateStorefiles(storeFiles, snapshot.getId());
+      return HStore.this.updateStorefiles(storeFiles, snapshot.getId()); // 加入storefiles列表，并通知scanner
     }
 
     @Override

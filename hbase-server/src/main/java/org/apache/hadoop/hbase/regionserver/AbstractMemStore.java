@@ -172,7 +172,7 @@ public abstract class AbstractMemStore implements MemStore {
     // create a new snapshot and let the old one go.
     Segment oldSnapshot = this.snapshot;
     if (!this.snapshot.isEmpty()) {
-      this.snapshot = SegmentFactory.instance().createImmutableSegment(this.comparator);
+      this.snapshot = SegmentFactory.instance().createImmutableSegment(this.comparator); // 创建新的snapshot？
     }
     this.snapshotId = NO_SNAPSHOT_ID;
     oldSnapshot.close();

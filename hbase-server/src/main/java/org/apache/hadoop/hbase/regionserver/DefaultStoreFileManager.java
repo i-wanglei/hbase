@@ -90,7 +90,7 @@ class DefaultStoreFileManager implements StoreFileManager {
   @Override
   public void insertNewFiles(Collection<HStoreFile> sfs) throws IOException {
     this.storefiles =
-        ImmutableList.sortedCopyOf(storeFileComparator, Iterables.concat(this.storefiles, sfs));
+        ImmutableList.sortedCopyOf(storeFileComparator, Iterables.concat(this.storefiles, sfs)); // 添加storefiles列表
   }
 
   @Override

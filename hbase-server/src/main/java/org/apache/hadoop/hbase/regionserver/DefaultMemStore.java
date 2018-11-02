@@ -100,7 +100,7 @@ public class DefaultMemStore extends AbstractMemStore {
         // Record the ImmutableSegment' heap overhead when initialing
         MemStoreSizing memstoreAccounting = new NonThreadSafeMemStoreSizing();
         ImmutableSegment immutableSegment = SegmentFactory.instance().
-            createImmutableSegment(this.active, memstoreAccounting);
+            createImmutableSegment(this.active, memstoreAccounting); // 把active装变为snapshop
         // regionServices can be null when testing
         if (regionServices != null) {
           regionServices.addMemStoreSize(memstoreAccounting.getDataSize(),
@@ -108,7 +108,7 @@ public class DefaultMemStore extends AbstractMemStore {
               memstoreAccounting.getOffHeapSize());
         }
         this.snapshot = immutableSegment;
-        resetActive();
+        resetActive(); // 创建一个新的active
       }
     }
     return new MemStoreSnapshot(this.snapshotId, this.snapshot);

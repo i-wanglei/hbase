@@ -161,7 +161,7 @@ public class MemorySizeUtil {
    */
   public static Pair<Long, MemoryType> getGlobalMemStoreSize(Configuration conf) {
     long offheapMSGlobal = conf.getLong(OFFHEAP_MEMSTORE_SIZE_KEY, 0);// Size in MBs
-    if (offheapMSGlobal > 0) {
+    if (offheapMSGlobal > 0) { // 如果配置了堆外内存限制
       // Off heap memstore size has not relevance when MSLAB is turned OFF. We will go with making
       // this entire size split into Chunks and pooling them in MemstoreLABPoool. We dont want to
       // create so many on demand off heap chunks. In fact when this off heap size is configured, we

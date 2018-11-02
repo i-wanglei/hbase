@@ -52,7 +52,7 @@ public class RegionServerAccounting {
     this.globalMemStoreLimit = globalMemstoreSizePair.getFirst();
     this.memType = globalMemstoreSizePair.getSecond();
     this.globalMemStoreLimitLowMarkPercent =
-        MemorySizeUtil.getGlobalMemStoreHeapLowerMark(conf, this.memType == MemoryType.HEAP);
+        MemorySizeUtil.getGlobalMemStoreHeapLowerMark(conf, this.memType == MemoryType.HEAP); // 默认为0.95
     // When off heap memstore in use we configure the global off heap space for memstore as bytes
     // not as % of max memory size. In such case, the lower water mark should be specified using the
     // key "hbase.regionserver.global.memstore.size.lower.limit" which says % of the global upper

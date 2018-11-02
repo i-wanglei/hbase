@@ -66,7 +66,7 @@ public class DefaultStoreFlusher extends StoreFlusher {
             snapshot.isTagsPresent(), false);
         IOException e = null;
         try {
-          performFlush(scanner, writer, smallestReadPoint, throughputController);
+          performFlush(scanner, writer, smallestReadPoint, throughputController); // 写hfile
         } catch (IOException ioe) {
           e = ioe;
           // throw the exception out
@@ -75,7 +75,7 @@ public class DefaultStoreFlusher extends StoreFlusher {
           if (e != null) {
             writer.close();
           } else {
-            finalizeWriter(writer, cacheFlushId, status);
+            finalizeWriter(writer, cacheFlushId, status); // 添加sequenceId，并关闭
           }
         }
       }

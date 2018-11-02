@@ -57,7 +57,7 @@ public class FlushAllLargeStoresPolicy extends FlushLargeStoresPolicy {
     Collection<HStore> stores = region.stores.values();
     Set<HStore> specificStoresToFlush = new HashSet<>();
     for (HStore store : stores) {
-      if (shouldFlush(store)) {
+      if (shouldFlush(store)) { // 判断store是否应该flush
         specificStoresToFlush.add(store);
       }
     }

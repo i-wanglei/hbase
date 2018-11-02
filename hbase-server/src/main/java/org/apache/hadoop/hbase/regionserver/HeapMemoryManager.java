@@ -404,7 +404,7 @@ public class HeapMemoryManager {
     public void flushRequested(FlushType type, Region region) {
       switch (type) {
       case ABOVE_ONHEAP_HIGHER_MARK:
-        blockedFlushCount.incrementAndGet(); // 统计
+        blockedFlushCount.incrementAndGet(); // 统计：阻塞请求的flush次数
         break;
       case ABOVE_ONHEAP_LOWER_MARK:
         unblockedFlushCount.incrementAndGet();

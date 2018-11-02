@@ -125,16 +125,16 @@ abstract class StoreFlusher {
     }
     try {
       do {
-        hasMore = scanner.next(kvs, scannerContext);
+        hasMore = scanner.next(kvs, scannerContext); // 读数据
         if (!kvs.isEmpty()) {
           for (Cell c : kvs) {
             // If we know that this KV is going to be included always, then let us
             // set its memstoreTS to 0. This will help us save space when writing to
             // disk.
-            sink.append(c);
+            sink.append(c); // 写数据
             int len = KeyValueUtil.length(c);
             if (control) {
-              throughputController.control(flushName, len);
+              throughputController.control(flushName, len); // 限速
             }
           }
           kvs.clear();

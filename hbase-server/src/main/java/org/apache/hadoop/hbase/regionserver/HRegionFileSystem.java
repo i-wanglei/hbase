@@ -388,7 +388,7 @@ public class HRegionFileSystem {
    */
   private static String generateUniqueName(final String suffix) {
     String name = UUID.randomUUID().toString().replaceAll("-", "");
-    if (suffix != null) name += suffix;
+    if (suffix != null) name += suffix; // 加后缀
     return name;
   }
 
@@ -431,8 +431,8 @@ public class HRegionFileSystem {
    * @throws IOException
    */
   public Path commitStoreFile(final String familyName, final Path buildPath) throws IOException {
-    Path dstPath = preCommitStoreFile(familyName, buildPath, -1, false);
-    return commitStoreFile(buildPath, dstPath);
+    Path dstPath = preCommitStoreFile(familyName, buildPath, -1, false); // 验证目的目录
+    return commitStoreFile(buildPath, dstPath); // 移动到目的目录
   }
 
   /**
@@ -448,12 +448,12 @@ public class HRegionFileSystem {
   private Path preCommitStoreFile(final String familyName, final Path buildPath,
       final long seqNum, final boolean generateNewName) throws IOException {
     Path storeDir = getStoreDir(familyName);
-    if(!fs.exists(storeDir) && !createDir(storeDir))
+    if(!fs.exists(storeDir) && !createDir(storeDir)) // 如果cf目录不存在，则创建
       throw new IOException("Failed creating " + storeDir);
 
     String name = buildPath.getName();
     if (generateNewName) {
-      name = generateUniqueName((seqNum < 0) ? null : "_SeqId_" + seqNum + "_");
+      name = generateUniqueName((seqNum < 0) ? null : "_SeqId_" + seqNum + "_"); // 随机一个名字
     }
     Path dstPath = new Path(storeDir, name);
     if (!fs.exists(buildPath)) {
@@ -1109,7 +1109,7 @@ public class HRegionFileSystem {
         if (!fs.exists(srcpath) && fs.exists(dstPath)) return true; // successful move
         // dir is not there, retry after some time.
         try {
-          sleepBeforeRetry("Rename Directory", i+1);
+          sleepBeforeRetry("Rename Directory", i+1); // sleep一会儿，并重试
         } catch (InterruptedException e) {
           throw (InterruptedIOException)new InterruptedIOException().initCause(e);
         }
