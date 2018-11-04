@@ -2423,7 +2423,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     OperationQuota quota = null;
     HRegion region = null;
     try {
-      checkOpen();
+      checkOpen(); // RS是否正常工作
       requestCount.increment();
       rpcGetRequestCount.increment();
       region = getRegion(request.getRegion());
@@ -2442,7 +2442,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       Boolean existence = null;
       Result r = null;
       RpcCallContext context = RpcServer.getCurrentCall().orElse(null);
-      quota = getRpcQuotaManager().checkQuota(region, OperationQuota.OperationType.GET);
+      quota = getRpcQuotaManager().checkQuota(region, OperationQuota.OperationType.GET); // 检查quota
 
       Get clientGet = ProtobufUtil.toGet(get);
       if (get.getExistenceOnly() && region.getCoprocessorHost() != null) {
@@ -2450,7 +2450,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
       if (existence == null) {
         if (context != null) {
-          r = get(clientGet, (region), null, context);
+          r = get(clientGet, (region), null, context); // get操作
         } else {
           // for test purpose
           r = region.get(clientGet);
@@ -2474,7 +2474,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           pbr = ProtobufUtil.toResultNoData(r);
           ((HBaseRpcController) controller).setCellScanner(CellUtil.createCellScanner(r
               .rawCells()));
-          addSize(context, r, null);
+          addSize(context, r, null); // TODOWXY: 细看
         } else {
           pbr = ProtobufUtil.toResult(r);
         }
@@ -2502,7 +2502,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
 
   private Result get(Get get, HRegion region, RegionScannersCloseCallBack closeCallBack,
       RpcCallContext context) throws IOException {
-    region.prepareGet(get);
+    region.prepareGet(get); // 一些检查
     boolean stale = region.getRegionInfo().getReplicaId() != 0;
 
     // This method is almost the same as HRegion#get.
@@ -2517,7 +2517,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
       }
     }
     Scan scan = new Scan(get);
-    if (scan.getLoadColumnFamiliesOnDemandValue() == null) {
+    if (scan.getLoadColumnFamiliesOnDemandValue() == null) { // TODOWXY: 干什么用的
       scan.setLoadColumnFamiliesOnDemand(region.isLoadingCfsOnDemandDefault());
     }
     RegionScannerImpl scanner = null;

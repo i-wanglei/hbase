@@ -1255,7 +1255,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   @Override
   public RegionInfo getRegionInfo() {
-    return this.fs.getRegionInfo();
+    return this.fs.getRegionInfo(); // 通过fs获取RegionInfo？
   }
 
   /**
@@ -2839,7 +2839,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       if (scan.getFilter() != null) {
         scan.getFilter().setReversed(true);
       }
-      return new ReversedRegionScannerImpl(scan, additionalScanners, this);
+      return new ReversedRegionScannerImpl(scan, additionalScanners, this); // 反向scan
     }
     return new RegionScannerImpl(scan, additionalScanners, this, nonceGroup, nonce);
   }
@@ -6172,7 +6172,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     RegionScannerImpl(Scan scan, List<KeyValueScanner> additionalScanners, HRegion region,
         long nonceGroup, long nonce) throws IOException {
       this.region = region;
-      this.maxResultSize = scan.getMaxResultSize();
+      this.maxResultSize = scan.getMaxResultSize(); // 最多返回多少字节
       if (scan.hasFilter()) {
         this.filter = new FilterWrapper(scan.getFilter());
       } else {
@@ -6202,7 +6202,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         } else {
           this.readPt = rsServices.getNonceManager().getMvccFromOperationContext(nonceGroup, nonce);
         }
-        scannerReadPoints.put(this, this.readPt);
+        scannerReadPoints.put(this, this.readPt); // 设置readPoint
       }
       initializeScanners(scan, additionalScanners);
     }
@@ -6223,12 +6223,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
       try {
         for (Map.Entry<byte[], NavigableSet<byte[]>> entry : scan.getFamilyMap().entrySet()) {
+          // entry.getKey(): cf name
+          // entry.getValue(): column set
           HStore store = stores.get(entry.getKey());
-          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt);
+          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt); // 创建store scanner
           instantiatedScanners.add(scanner);
           if (this.filter == null || !scan.doLoadColumnFamiliesOnDemand()
               || this.filter.isFamilyEssential(entry.getKey())) {
-            scanners.add(scanner);
+            scanners.add(scanner); // 每个store的scanner
           } else {
             joinedScanners.add(scanner);
           }
@@ -7219,15 +7221,15 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   void prepareGet(final Get get) throws IOException {
-    checkRow(get.getRow(), "Get");
+    checkRow(get.getRow(), "Get"); // 检查rowKey是否在region范围
     // Verify families are all valid
     if (get.hasFamilies()) {
       for (byte[] family : get.familySet()) {
-        checkFamily(family);
+        checkFamily(family); // 检查是否有这个CF
       }
     } else { // Adding all families to scanner
       for (byte[] family : this.htableDescriptor.getColumnFamilyNames()) {
-        get.addFamily(family);
+        get.addFamily(family); // 没设置CF，则查询所有的CF
       }
     }
   }
@@ -7933,7 +7935,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   //
 
   void checkFamily(final byte [] family)
-  throws NoSuchColumnFamilyException {
+  throws NoSuchColumnFamilyException { // 检查是否有这个CF
     if (!this.htableDescriptor.hasColumnFamily(family)) {
       throw new NoSuchColumnFamilyException("Column family " +
           Bytes.toString(family) + " does not exist in region " + this
@@ -8168,7 +8170,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     switch (op) {
       case GET:  // read operations
       case SCAN:
-        checkReadsEnabled();
+        checkReadsEnabled(); // region是否能读
         break;
       default:
         break;

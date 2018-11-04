@@ -177,8 +177,9 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
      // the seek operation. However, we also look the row-column Bloom filter
      // for multi-row (non-"get") scans because this is not done in
      // StoreFile.passesBloomFilter(Scan, SortedSet<byte[]>).
-     this.useRowColBloom = numColumns > 1 || (!get && numColumns == 1);
+     this.useRowColBloom = numColumns > 1 || (!get && numColumns == 1); // 两种情况：1、查询多列(get or scan) 2、查询多行(可以是单列) 为啥get单列不能用？
      this.maxRowSize = scanInfo.getTableMaxRowSize();
+     // 设置readType
     if (get) {
       this.readType = Scan.ReadType.PREAD;
       this.scanUsePread = true;
@@ -200,7 +201,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
     this.preadMaxBytes = scanInfo.getPreadMaxBytes();
     this.cellsPerHeartbeatCheck = scanInfo.getCellsPerTimeoutCheck();
     // Parallel seeking is on if the config allows and more there is more than one store file.
-    if (store != null && store.getStorefilesCount() > 1) {
+    if (store != null && store.getStorefilesCount() > 1) { // 如果store超过1个，可以开启并行seek
       RegionServerServices rsService = store.getHRegion().getRegionServerServices();
       if (rsService != null && scanInfo.isParallelSeekEnabled()) {
         this.parallelSeekEnabled = true;
@@ -226,7 +227,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       long readPt) throws IOException {
     this(store, scan, scanInfo, columns != null ? columns.size() : 0, readPt,
         scan.getCacheBlocks(), ScanType.USER_SCAN);
-    if (columns != null && scan.isRaw()) {
+    if (columns != null && scan.isRaw()) { // TODOWXY: 啥意思？
       throw new DoNotRetryIOException("Cannot specify any column for a raw scan");
     }
     matcher = UserScanQueryMatcher.create(scan, scanInfo, columns, oldestUnexpiredTS, now,

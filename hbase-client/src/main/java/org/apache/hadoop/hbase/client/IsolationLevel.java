@@ -35,7 +35,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 public enum IsolationLevel {
 
   READ_COMMITTED(1),
-  READ_UNCOMMITTED(2);
+  READ_UNCOMMITTED(2); // 能读到未提交的put数据
 
   IsolationLevel(int value) {}
 

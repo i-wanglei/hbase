@@ -312,7 +312,7 @@ public class Scan extends Query {
     setPriority(get.getPriority());
   }
 
-  public boolean isGetScan() {
+  public boolean isGetScan() { // startRow和stopRow相同
     return includeStartRow && includeStopRow
         && ClientUtil.areScanStartRowAndStopRowEqual(this.startRow, this.stopRow);
   }
@@ -1174,7 +1174,9 @@ public class Scan extends Query {
 
   @InterfaceAudience.Public
   public enum ReadType {
-    DEFAULT, STREAM, PREAD
+    DEFAULT, // 开始是PREAD，如果scan时间长，则变为STREAM
+    STREAM,
+    PREAD
   }
 
   /**

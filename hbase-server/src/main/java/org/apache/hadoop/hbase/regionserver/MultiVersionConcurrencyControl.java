@@ -250,7 +250,7 @@ public class MultiVersionConcurrencyControl {
         .add("writePoint", writePoint).toString();
   }
 
-  public long getReadPoint() {
+  public long getReadPoint() { // scan数据时，获取readPoint
     return readPoint.get();
   }
 
