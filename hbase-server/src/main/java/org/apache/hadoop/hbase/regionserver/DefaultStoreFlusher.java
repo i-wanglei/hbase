@@ -52,7 +52,7 @@ public class DefaultStoreFlusher extends StoreFlusher {
     if (cellsCount == 0) return result; // don't flush if there are no entries
 
     // Use a store scanner to find which rows to flush.
-    long smallestReadPoint = store.getSmallestReadPoint();
+    long smallestReadPoint = store.getSmallestReadPoint(); // 这个region所有scanner最小的readPoint
     InternalScanner scanner = createScanner(snapshot.getScanners(), smallestReadPoint, tracker);
     StoreFileWriter writer;
     try {

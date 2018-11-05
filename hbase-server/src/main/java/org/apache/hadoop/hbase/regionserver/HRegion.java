@@ -392,7 +392,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
    * region. Writes older than this readPoint, are included in every
    * read operation.
    */
-  public long getSmallestReadPoint() {
+  public long getSmallestReadPoint() { // 这个region所有scanner最小的readPoint
     long minimumReadPoint;
     // We need to ensure that while we are calculating the smallestReadPoint
     // no new RegionScanners can grab a readPoint that we are unaware of.

@@ -69,7 +69,7 @@ public class SnapshotSegmentScanner extends NonReversedNonLazyKeyValueScanner {
   @Override
   public boolean seek(Cell seekCell) {
     // restart iterator
-    this.iter = createIterator(this.segment);
+    this.iter = createIterator(this.segment); // 从头开始查找
     return reseek(seekCell);
   }
 

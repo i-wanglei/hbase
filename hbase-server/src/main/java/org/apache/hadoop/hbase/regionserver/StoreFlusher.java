@@ -125,7 +125,7 @@ abstract class StoreFlusher {
     }
     try {
       do {
-        hasMore = scanner.next(kvs, scannerContext); // 读数据
+        hasMore = scanner.next(kvs, scannerContext); // 读数据 StoreScanner
         if (!kvs.isEmpty()) {
           for (Cell c : kvs) {
             // If we know that this KV is going to be included always, then let us

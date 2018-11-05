@@ -47,7 +47,7 @@ public interface KeyValueScanner extends Shipper, Closeable {
    * user need.
    * @return the next Cell
    */
-  Cell peek();
+  Cell peek(); // 看一下next cell
 
   /**
    * Return the next Cell in this scanner, iterating the scanner
@@ -60,7 +60,7 @@ public interface KeyValueScanner extends Shipper, Closeable {
    * @param key seek value
    * @return true if scanner has values left, false if end of scanner
    */
-  boolean seek(Cell key) throws IOException;
+  boolean seek(Cell key) throws IOException; // 从头开始查找
 
   /**
    * Reseek the scanner at or after the specified KeyValue.
@@ -70,7 +70,7 @@ public interface KeyValueScanner extends Shipper, Closeable {
    * @param key seek value (should be non-null)
    * @return true if scanner has values left, false if end of scanner
    */
-  boolean reseek(Cell key) throws IOException;
+  boolean reseek(Cell key) throws IOException; // 从上次查找的地方，接着向后查找
 
   /**
    * Get the order of this KeyValueScanner. This is only relevant for StoreFileScanners and

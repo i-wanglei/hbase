@@ -390,7 +390,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
             throw new RowTooBigException("Max row size allowed: " + maxRowSize
               + ", but row is bigger than that");
           }
-          scanner.seek(seekKey);
+          scanner.seek(seekKey); // 每个scanner都seek到指定位置
           Cell c = scanner.peek();
           if (c != null) {
             totalScannersSoughtBytes += PrivateCellUtil.estimatedSerializedSizeOf(c);
@@ -440,7 +440,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
         continue;
       }
 
-      if (kvs.shouldUseScanner(scan, store, expiredTimestampCutoff)) {
+      if (kvs.shouldUseScanner(scan, store, expiredTimestampCutoff)) { // 过滤scanner，通过timeRange、keyRange、bloomFilter
         scanners.add(kvs);
       } else {
         kvs.close();
