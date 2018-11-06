@@ -2808,7 +2808,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
   private RegionScannerImpl getScanner(Scan scan, List<KeyValueScanner> additionalScanners,
       long nonceGroup, long nonce) throws IOException {
-    startRegionOperation(Operation.SCAN);
+    startRegionOperation(Operation.SCAN); // 加锁操作
     try {
       // Verify families are all valid
       if (!scan.hasFamilies()) {
@@ -6226,7 +6226,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           // entry.getKey(): cf name
           // entry.getValue(): column set
           HStore store = stores.get(entry.getKey());
-          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt); // 创建store scanner
+          KeyValueScanner scanner = store.getScanner(scan, entry.getValue(), this.readPt); // 创建StoreScanner，并seek到第一条记录
           instantiatedScanners.add(scanner);
           if (this.filter == null || !scan.doLoadColumnFamiliesOnDemand()
               || this.filter.isFamilyEssential(entry.getKey())) {
@@ -6235,7 +6235,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             joinedScanners.add(scanner);
           }
         }
-        initializeKVHeap(scanners, joinedScanners, region);
+        initializeKVHeap(scanners, joinedScanners, region); // region级别的heap
       } catch (Throwable t) {
         throw handleException(instantiatedScanners, t);
       }
@@ -6746,7 +6746,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       if (stopRow == null || Bytes.equals(stopRow, HConstants.EMPTY_END_ROW)) {
         return false;
       }
-      int c = comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length);
+      int c = comparator.compareRows(currentRowCell, stopRow, 0, stopRow.length); // 是否到达stopRow
       return c > 0 || (c == 0 && !includeStopRow);
     }
 

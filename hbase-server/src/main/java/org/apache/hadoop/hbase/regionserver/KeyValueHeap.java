@@ -127,7 +127,7 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
       KeyValueScanner topScanner = this.heap.peek();
       // no need to add current back to the heap if it is the only scanner left
       if (topScanner != null && this.comparator.compare(kvNext, topScanner.peek()) >= 0) {
-        this.heap.add(this.current);
+        this.heap.add(this.current); // 重新加入heap中
         this.current = null;
         this.current = pollRealKV();
       }
@@ -187,7 +187,7 @@ public class KeyValueHeap extends NonReversedNonLazyKeyValueScanner
 
     @Override
     public int compare(KeyValueScanner left, KeyValueScanner right) {
-      int comparison = compare(left.peek(), right.peek());
+      int comparison = compare(left.peek(), right.peek()); // 对比两个scanner的当前值
       if (comparison != 0) {
         return comparison;
       } else {

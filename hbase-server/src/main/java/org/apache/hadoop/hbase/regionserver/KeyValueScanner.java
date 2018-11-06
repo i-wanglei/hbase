@@ -30,6 +30,12 @@ import org.apache.hadoop.hbase.client.Scan;
 /**
  * Scanner that returns the next KeyValue.
  */
+// KeyValueScanner,从内存或文件中获取KeyValue的scanner,它的主要接口有peek(),seek(KeyValue key),next()等，
+// 其中next和peek都能获取scanner中的下一个KeyValue，但是next会移动iterator，peek不会，
+// 而seek就是将iterator定位到指定的KeyValue，如果不存在该KeyValue则定位到其后面的那个KeyValue，
+// 在scanner初始化的时候都会调用下seek接口,它的角色可以理解为服务InternalScanner
+
+// 主要实现类有：SegmentScanner、SnapshotSegmentScanner、StoreFileScanner
 @InterfaceAudience.Private
 // TODO: Change name from KeyValueScanner to CellScanner only we already have a simple CellScanner
 // so this should be something else altogether, a decoration on our base CellScanner. TODO.

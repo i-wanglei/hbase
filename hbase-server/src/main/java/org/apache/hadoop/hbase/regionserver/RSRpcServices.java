@@ -2522,8 +2522,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     }
     RegionScannerImpl scanner = null;
     try {
-      scanner = region.getScanner(scan);
-      scanner.next(results);
+      scanner = region.getScanner(scan); // 初始化RegionScanner
+      scanner.next(results); // 获取数据
     } finally {
       if (scanner != null) {
         if (closeCallBack == null) {

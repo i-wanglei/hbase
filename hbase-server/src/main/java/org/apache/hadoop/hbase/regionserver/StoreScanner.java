@@ -231,7 +231,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       throw new DoNotRetryIOException("Cannot specify any column for a raw scan");
     }
     matcher = UserScanQueryMatcher.create(scan, scanInfo, columns, oldestUnexpiredTS, now,
-      store.getCoprocessorHost());
+      store.getCoprocessorHost()); // 创建NormalUserScanQueryMatcher
 
     store.addChangedReaderObserver(this);
 
@@ -255,7 +255,7 @@ public class StoreScanner extends NonReversedNonLazyKeyValueScanner
       this.storeOffset = scan.getRowOffsetPerColumnFamily();
       addCurrentScanners(scanners);
       // Combine all seeked scanners with a heap
-      resetKVHeap(scanners, comparator);
+      resetKVHeap(scanners, comparator); // 构造优先队列，store级别的heap
     } catch (IOException e) {
       // remove us from the HStore#changedReaderObservers here or we'll have no chance to
       // and might cause memory leak

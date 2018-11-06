@@ -144,7 +144,7 @@ public class StoreFileScanner implements KeyValueScanner {
         HStoreFile sf = sortedFiles.remove();
         StoreFileScanner scanner;
         if (usePread) {
-          scanner = sf.getPreadScanner(cacheBlocks, readPt, i, canOptimizeForNonNullColumn);
+          scanner = sf.getPreadScanner(cacheBlocks, readPt, i, canOptimizeForNonNullColumn); // 初始化StoreFileScanner
         } else {
           scanner = sf.getStreamScanner(canUseDrop, cacheBlocks, isCompaction, readPt, i,
               canOptimizeForNonNullColumn);

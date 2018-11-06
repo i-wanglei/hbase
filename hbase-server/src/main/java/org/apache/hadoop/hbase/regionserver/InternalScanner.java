@@ -41,6 +41,10 @@ import org.apache.yetus.audience.InterfaceStability;
  * all the family members, as they may have been last updated at different
  * times.
  */
+// InternalScanner,可以理解为包含其他scanner的scanner，它的主要接口为next(),
+// 作用是从其包含的scanner中获取下一个KeyValue,它的角色可以理解为雇佣KeyValueScanner
+
+// 主要实现类有：RegionScanner、StoreScanner
 @InterfaceAudience.LimitedPrivate(HBaseInterfaceAudience.COPROC)
 @InterfaceStability.Evolving
 public interface InternalScanner extends Closeable {

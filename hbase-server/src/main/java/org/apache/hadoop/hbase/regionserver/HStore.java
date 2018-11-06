@@ -1202,7 +1202,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     this.lock.readLock().lock();
     try {
       storeFilesToScan = this.storeEngine.getStoreFileManager().getFilesForScan(startRow,
-        includeStartRow, stopRow, includeStopRow);
+        includeStartRow, stopRow, includeStopRow); // 获取此store的HStoreFile列表
       memStoreScanners = this.memstore.getScanners(readPt);
     } finally {
       this.lock.readLock().unlock();
@@ -1214,7 +1214,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     // but now we get them in ascending order, which I think is
     // actually more correct, since memstore get put at the end.
     List<StoreFileScanner> sfScanners = StoreFileScanner.getScannersForStoreFiles(storeFilesToScan,
-      cacheBlocks, usePread, isCompaction, false, matcher, readPt);
+      cacheBlocks, usePread, isCompaction, false, matcher, readPt); // 封装为StoreFileScanner
     List<KeyValueScanner> scanners = new ArrayList<>(sfScanners.size() + 1);
     scanners.addAll(sfScanners);
     // Then the memstore scanners
