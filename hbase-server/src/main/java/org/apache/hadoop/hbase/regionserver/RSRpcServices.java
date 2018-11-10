@@ -1193,7 +1193,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     try {
       Class<?> cls = rs.conf.getClass(
           REGION_SERVER_RPC_SCHEDULER_FACTORY_CLASS,
-          SimpleRpcSchedulerFactory.class);
+          SimpleRpcSchedulerFactory.class); // rpc调度工厂类
       rpcSchedulerFactory = cls.asSubclass(RpcSchedulerFactory.class)
           .getDeclaredConstructor().newInstance();
     } catch (NoSuchMethodException | InvocationTargetException |

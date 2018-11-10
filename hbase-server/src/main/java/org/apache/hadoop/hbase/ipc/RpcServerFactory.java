@@ -54,9 +54,9 @@ public class RpcServerFactory {
       final InetSocketAddress bindAddress, Configuration conf,
       RpcScheduler scheduler, boolean reservoirEnabled) throws IOException {
     String rpcServerClass = conf.get(CUSTOM_RPC_SERVER_IMPL_CONF_KEY,
-        NettyRpcServer.class.getName());
+        NettyRpcServer.class.getName()); // 默认RpcServer实现
     StringBuilder servicesList = new StringBuilder();
-    for (BlockingServiceAndInterface s: services) {
+    for (BlockingServiceAndInterface s: services) { // 实现的rpc接口列表
       ServiceDescriptor sd = s.getBlockingService().getDescriptorForType();
       if (sd == null) continue; // Can be null for certain tests like TestTokenAuthentication
       if (servicesList.length() > 0) servicesList.append(", ");

@@ -37,9 +37,9 @@ import org.apache.hadoop.hbase.conf.ConfigurationObserver;
 public class SimpleRpcScheduler extends RpcScheduler implements ConfigurationObserver {
   private int port;
   private final PriorityFunction priority;
-  private final RpcExecutor callExecutor;
-  private final RpcExecutor priorityExecutor;
-  private final RpcExecutor replicationExecutor;
+  private final RpcExecutor callExecutor; // 普通读写
+  private final RpcExecutor priorityExecutor; // meta读写
+  private final RpcExecutor replicationExecutor; // 副本读写
 
   /** What level a high priority call is at. */
   private final int highPriorityLevel;
