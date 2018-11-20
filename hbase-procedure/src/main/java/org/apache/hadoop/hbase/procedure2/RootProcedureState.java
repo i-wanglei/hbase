@@ -40,7 +40,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ProcedureProtos.Procedu
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-class RootProcedureState<TEnvironment> {
+class RootProcedureState<TEnvironment> { // 描述root procedure的状态
 
   private enum State {
     RUNNING,         // The Procedure is running or ready to run
@@ -146,7 +146,7 @@ class RootProcedureState<TEnvironment> {
       subprocStack = new ArrayList<>();
     }
     proc.addStackIndex(subprocStack.size());
-    subprocStack.add(proc);
+    subprocStack.add(proc); // sub procedure栈
   }
 
   protected synchronized void addSubProcedure(Procedure<TEnvironment> proc) {
@@ -156,7 +156,7 @@ class RootProcedureState<TEnvironment> {
     if (subprocs == null) {
       subprocs = new HashSet<>();
     }
-    subprocs.add(proc);
+    subprocs.add(proc); // sub procedure集合
   }
 
   /**
@@ -167,7 +167,9 @@ class RootProcedureState<TEnvironment> {
    * on load we recreate the full stack by aggregating each procedure stack-positions.
    */
   protected synchronized void loadStack(Procedure<TEnvironment> proc) {
+    // step 1: 添加到sub procedure集合
     addSubProcedure(proc);
+    // step 2: 添加到sub procedure栈
     int[] stackIndexes = proc.getStackIndexes();
     if (stackIndexes != null) {
       if (subprocStack == null) {
@@ -179,9 +181,10 @@ class RootProcedureState<TEnvironment> {
         while (diff-- > 0) subprocStack.add(null);
       }
       for (int i = 0; i < stackIndexes.length; ++i) {
-        subprocStack.set(stackIndexes[i], proc);
+        subprocStack.set(stackIndexes[i], proc); // 栈的这几个位置，都是这个procedure
       }
     }
+    // step 3: 设置状态
     if (proc.getState() == ProcedureState.ROLLEDBACK) {
       state = State.ROLLINGBACK;
     } else if (proc.isFailed()) {

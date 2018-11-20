@@ -646,7 +646,7 @@ public class ProcedureExecutor<TEnvironment> {
 
     // Acquire the store lease.
     st = System.nanoTime();
-    store.recoverLease();
+    store.recoverLease(); // TODOWXY: 恢复租约
     et = System.nanoTime();
     LOG.info("Recovered {} lease in {}", store.getClass().getSimpleName(),
       StringUtils.humanTimeDiff(TimeUnit.NANOSECONDS.toMillis(et - st)));
@@ -660,7 +660,7 @@ public class ProcedureExecutor<TEnvironment> {
     // so we can start the threads and accept new procedures.
     // The second step will do the actual load of old procedures.
     st = System.nanoTime();
-    load(abortOnCorruption);
+    load(abortOnCorruption); // TODOWXY
     et = System.nanoTime();
     LOG.info("Loaded {} in {}", store.getClass().getSimpleName(),
       StringUtils.humanTimeDiff(TimeUnit.NANOSECONDS.toMillis(et - st)));
@@ -1087,6 +1087,7 @@ public class ProcedureExecutor<TEnvironment> {
   public long submitProcedure(Procedure<TEnvironment> proc, NonceKey nonceKey) {
     Preconditions.checkArgument(lastProcId.get() >= 0);
 
+    // step 1: 必要检查：确保无Parent Procedure等
     prepareProcedure(proc);
 
     final Long currentProcId;
@@ -1095,18 +1096,20 @@ public class ProcedureExecutor<TEnvironment> {
       Preconditions.checkArgument(currentProcId != null,
         "Expected nonceKey=" + nonceKey + " to be reserved, use registerNonce(); proc=" + proc);
     } else {
-      currentProcId = nextProcId();
+      currentProcId = nextProcId(); // 获取procId
     }
 
     // Initialize the procedure
     proc.setNonceKey(nonceKey);
-    proc.setProcId(currentProcId.longValue());
+    proc.setProcId(currentProcId.longValue()); // 设置procId，并设置procedure state为RUNNABLE
 
     // Commit the transaction
+    // step 2: 提交到ProcedureStore
     store.insert(proc, null);
     LOG.debug("Stored {}", proc);
 
     // Add the procedure to the executor
+    // step 3: 添加到ProcedureScheduler
     return pushProcedure(proc);
   }
 
@@ -1155,13 +1158,13 @@ public class ProcedureExecutor<TEnvironment> {
 
     // Create the rollback stack for the procedure
     RootProcedureState<TEnvironment> stack = new RootProcedureState<>();
-    rollbackStack.put(currentProcId, stack);
+    rollbackStack.put(currentProcId, stack); // 回滚栈
 
     // Submit the new subprocedures
     assert !procedures.containsKey(currentProcId);
     procedures.put(currentProcId, proc);
-    sendProcedureAddedNotification(currentProcId);
-    scheduler.addBack(proc);
+    sendProcedureAddedNotification(currentProcId); // 通知listener
+    scheduler.addBack(proc); // 添加到ProcedureScheduler
     return proc.getProcId();
   }
 
@@ -1361,13 +1364,13 @@ public class ProcedureExecutor<TEnvironment> {
   // ==========================================================================
   private long nextProcId() {
     long procId = lastProcId.incrementAndGet();
-    if (procId < 0) {
-      while (!lastProcId.compareAndSet(procId, 0)) {
+    if (procId < 0) { // procId越界判断
+      while (!lastProcId.compareAndSet(procId, 0)) { // procId越界之后从0开始
         procId = lastProcId.get();
         if (procId >= 0)
           break;
       }
-      while (procedures.containsKey(procId)) {
+      while (procedures.containsKey(procId)) { // procId从0开始之后，有可能和现有的procId重复
         procId = lastProcId.incrementAndGet();
       }
     }
@@ -1397,25 +1400,25 @@ public class ProcedureExecutor<TEnvironment> {
       LOG.debug("{} is already finished, skipping execution", proc);
       return;
     }
-    final Long rootProcId = getRootProcedureId(proc);
+    final Long rootProcId = getRootProcedureId(proc); // 获取root proc id
     if (rootProcId == null) {
       // The 'proc' was ready to run but the root procedure was rolledback
       LOG.warn("Rollback because parent is done/rolledback proc=" + proc);
-      executeRollback(proc);
+      executeRollback(proc); // 回滚
       return;
     }
 
-    RootProcedureState<TEnvironment> procStack = rollbackStack.get(rootProcId);
+    RootProcedureState<TEnvironment> procStack = rollbackStack.get(rootProcId); // 提交procedure会创建RootProcedureState对象
     if (procStack == null) {
       LOG.warn("RootProcedureState is null for " + proc.getProcId());
       return;
     }
     do {
       // Try to acquire the execution
-      if (!procStack.acquire(proc)) {
-        if (procStack.setRollback()) {
+      if (!procStack.acquire(proc)) { // root procedure状态是否为RUNNING
+        if (procStack.setRollback()) { // 设置root procedure状态为ROLLINGBACK
           // we have the 'rollback-lock' we can start rollingback
-          switch (executeRollback(rootProcId, procStack)) {
+          switch (executeRollback(rootProcId, procStack)) { // 回滚
             case LOCK_ACQUIRED:
               break;
             case LOCK_YIELD_WAIT:
@@ -1453,12 +1456,18 @@ public class ProcedureExecutor<TEnvironment> {
 
       // Execute the procedure
       assert proc.getState() == ProcedureState.RUNNABLE : proc;
+
       // Note that lock is NOT about concurrency but rather about ensuring
       // ownership of a procedure of an entity such as a region or table
+
+      // TODOWXY: 获取环境锁
+      // 环境锁确保一个Table只能被一个Procedure处理，
+      // 首先获取Namespace的共享锁，避免正在操作表时，namespace被删除
+      // 获取Table的互斥锁，避免对一个Table的多个操作同时执行
       LockState lockState = acquireLock(proc);
       switch (lockState) {
         case LOCK_ACQUIRED:
-          execProcedure(procStack, proc);
+          execProcedure(procStack, proc); // 执行procedure
           break;
         case LOCK_YIELD_WAIT:
           LOG.info(lockState + " " + proc);
@@ -1471,7 +1480,7 @@ public class ProcedureExecutor<TEnvironment> {
         default:
           throw new UnsupportedOperationException();
       }
-      procStack.release(proc);
+      procStack.release(proc); // 计数减1
 
       if (proc.isSuccess()) {
         // update metrics on finishing the procedure
@@ -1479,7 +1488,7 @@ public class ProcedureExecutor<TEnvironment> {
         LOG.info("Finished " + proc + " in " + StringUtils.humanTimeDiff(proc.elapsedTime()));
         // Finalize the procedure state
         if (proc.getProcId() == rootProcId) {
-          procedureFinished(proc);
+          procedureFinished(proc); // 整个procedure都完成
         } else {
           execCompletionCleanup(proc);
         }
@@ -1619,6 +1628,7 @@ public class ProcedureExecutor<TEnvironment> {
     return LockState.LOCK_ACQUIRED;
   }
 
+  // 先让其他procedure运行
   private void yieldProcedure(Procedure<TEnvironment> proc) {
     releaseLock(proc, false);
     scheduler.yield(proc);
@@ -1671,6 +1681,7 @@ public class ProcedureExecutor<TEnvironment> {
     do {
       reExecute = false;
       try {
+        // step 1: 执行procedure逻辑，根据exception设置suspended、yield、failed
         subprocs = procedure.doExecute(getEnvironment());
         if (subprocs != null && subprocs.length == 0) {
           subprocs = null;
@@ -1691,12 +1702,17 @@ public class ProcedureExecutor<TEnvironment> {
         // Catch NullPointerExceptions or similar errors...
         String msg = "CODE-BUG: Uncaught runtime exception: " + procedure;
         LOG.error(msg, e);
-        procedure.setFailure(new RemoteProcedureException(msg, e));
+        procedure.setFailure(new RemoteProcedureException(msg, e)); // 设置失败
       }
 
-      if (!procedure.isFailed()) {
+      // step 2: 根据procedure执行状态，执行相应逻辑
+      // 1、如果返回的对象是原对象，则重新运行
+      // 2、如果有sub procedure，则初始化它们
+      // 3、如果超时，则添加到timeoutExecutor
+      // 4、如果没报错，且没有挂起，则标记procedure状态为成功
+      if (!procedure.isFailed()) { // procedure没有报错
         if (subprocs != null) {
-          if (subprocs.length == 1 && subprocs[0] == procedure) {
+          if (subprocs.length == 1 && subprocs[0] == procedure) { // 返回的对象仍然是原对象，则重新运行
             // Procedure returned itself. Quick-shortcut for a state machine-like procedure;
             // i.e. we go around this loop again rather than go back out on the scheduler queue.
             subprocs = null;
@@ -1705,7 +1721,7 @@ public class ProcedureExecutor<TEnvironment> {
           } else {
             // Yield the current procedure, and make the subprocedure runnable
             // subprocs may come back 'null'.
-            subprocs = initializeChildren(procStack, procedure, subprocs);
+            subprocs = initializeChildren(procStack, procedure, subprocs); // 初始化sub procedure
             LOG.info("Initialized subprocedures=" +
               (subprocs == null? null:
                 Stream.of(subprocs).map(e -> "{" + e.toString() + "}").
@@ -1714,13 +1730,14 @@ public class ProcedureExecutor<TEnvironment> {
         } else if (procedure.getState() == ProcedureState.WAITING_TIMEOUT) {
           LOG.trace("Added to timeoutExecutor {}", procedure);
           timeoutExecutor.add(procedure);
-        } else if (!suspended) {
+        } else if (!suspended) { // procedure没报错，且没有挂起
           // No subtask, so we are done
           procedure.setState(ProcedureState.SUCCESS);
         }
       }
 
       // Add the procedure to the stack
+      // step 3: 添加到回滚栈
       procStack.addRollbackStep(procedure);
 
       // allows to kill the executor before something is stored to the wal.
@@ -1737,6 +1754,7 @@ public class ProcedureExecutor<TEnvironment> {
       //
       // Commit the transaction even if a suspend (state may have changed). Note this append
       // can take a bunch of time to complete.
+      // step 4: 更新store
       updateStoreOnExec(procStack, procedure, subprocs);
 
       // if the store is not running we are aborting
@@ -1761,6 +1779,7 @@ public class ProcedureExecutor<TEnvironment> {
     }
 
     // Submit the new subprocedures
+    // step 5: 如果有sub procedure，则提交
     if (subprocs != null && !procedure.isFailed()) {
       submitChildrenProcedures(subprocs);
     }
@@ -1768,10 +1787,12 @@ public class ProcedureExecutor<TEnvironment> {
     // we need to log the release lock operation before waking up the parent procedure, as there
     // could be race that the parent procedure may call updateStoreOnExec ahead of us and remove all
     // the sub procedures from store and cause problems...
+    // step 6: 释放环境锁
     releaseLock(procedure, false);
 
     // if the procedure is complete and has a parent, count down the children latch.
     // If 'suspended', do nothing to change state -- let other threads handle unsuspend event.
+    // step 7: 如果没有挂起，当前procedure已经完成，所有的sub procedure也完成了，则提交parent procedure
     if (!suspended && procedure.isFinished() && procedure.hasParent()) {
       countDownChildren(procStack, procedure);
     }
@@ -1825,27 +1846,7 @@ public class ProcedureExecutor<TEnvironment> {
       subproc.updateMetricsOnSubmit(getEnvironment());
       assert !procedures.containsKey(subproc.getProcId());
       procedures.put(subproc.getProcId(), subproc);
-      scheduler.addFront(subproc);
-    }
-  }
-
-  private void countDownChildren(RootProcedureState<TEnvironment> procStack,
-      Procedure<TEnvironment> procedure) {
-    Procedure<TEnvironment> parent = procedures.get(procedure.getParentProcId());
-    if (parent == null) {
-      assert procStack.isRollingback();
-      return;
-    }
-
-    // If this procedure is the last child awake the parent procedure
-    if (parent.tryRunnable()) {
-      // If we succeeded in making the parent runnable -- i.e. all of its
-      // children have completed, move parent to front of the queue.
-      store.update(parent);
-      scheduler.addFront(parent);
-      LOG.info("Finished subprocedure pid={}, resume processing parent {}",
-          procedure.getProcId(), parent);
-      return;
+      scheduler.addFront(subproc); // 添加到ProcedureScheduler队列前面
     }
   }
 
@@ -1872,6 +1873,28 @@ public class ProcedureExecutor<TEnvironment> {
       } else {
         store.update(procedure);
       }
+    }
+  }
+
+  // sub procedure引用计数减1，如果最后一个sub procedure已完成，则移动parent procedure到队列前面
+  // TODOWXY: 这个parent procedure指的是root procedure吗？
+  private void countDownChildren(RootProcedureState<TEnvironment> procStack,
+                                 Procedure<TEnvironment> procedure) {
+    Procedure<TEnvironment> parent = procedures.get(procedure.getParentProcId());
+    if (parent == null) {
+      assert procStack.isRollingback();
+      return;
+    }
+
+    // If this procedure is the last child awake the parent procedure
+    if (parent.tryRunnable()) {
+      // If we succeeded in making the parent runnable -- i.e. all of its
+      // children have completed, move parent to front of the queue.
+      store.update(parent);
+      scheduler.addFront(parent);
+      LOG.info("Finished subprocedure pid={}, resume processing parent {}",
+              procedure.getProcId(), parent);
+      return;
     }
   }
 
@@ -1935,8 +1958,9 @@ public class ProcedureExecutor<TEnvironment> {
   // ==========================================================================
   //  Worker Thread
   // ==========================================================================
+  // 一个WorkerThread同一时刻只能处理一个Procedure
   private class WorkerThread extends StoppableThread {
-    private final AtomicLong executionStartTime = new AtomicLong(Long.MAX_VALUE);
+    private final AtomicLong executionStartTime = new AtomicLong(Long.MAX_VALUE); // 当前procedure的开始时间
     private volatile Procedure<TEnvironment> activeProcedure;
 
     public WorkerThread(ThreadGroup group) {
@@ -1958,7 +1982,7 @@ public class ProcedureExecutor<TEnvironment> {
       long lastUpdate = EnvironmentEdgeManager.currentTime();
       try {
         while (isRunning() && keepAlive(lastUpdate)) {
-          Procedure<TEnvironment> proc = scheduler.poll(keepAliveTime, TimeUnit.MILLISECONDS);
+          Procedure<TEnvironment> proc = scheduler.poll(keepAliveTime, TimeUnit.MILLISECONDS); // 获取一个Procedure任务
           if (proc == null) {
             continue;
           }
@@ -1968,14 +1992,14 @@ public class ProcedureExecutor<TEnvironment> {
           LOG.trace("Execute pid={} runningCount={}, activeCount={}", proc.getProcId(),
             runningCount, activeCount);
           executionStartTime.set(EnvironmentEdgeManager.currentTime());
-          IdLock.Entry lockEntry = procExecutionLock.getLockEntry(proc.getProcId());
+          IdLock.Entry lockEntry = procExecutionLock.getLockEntry(proc.getProcId()); // 获取IdLock: 确保一个procedure只被一个线程处理
           try {
-            executeProcedure(proc);
+            executeProcedure(proc); // 处理procedure
           } catch (AssertionError e) {
             LOG.info("ASSERT pid=" + proc.getProcId(), e);
             throw e;
           } finally {
-            procExecutionLock.releaseLockEntry(lockEntry);
+            procExecutionLock.releaseLockEntry(lockEntry); // 释放IdLock
             activeCount = activeExecutorCount.decrementAndGet();
             runningCount = store.setRunningProcedureCount(activeCount);
             LOG.trace("Halt pid={} runningCount={}, activeCount={}", proc.getProcId(),

@@ -824,7 +824,7 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
    */
   private synchronized boolean childrenCountDown() {
     assert childrenLatch > 0: this;
-    boolean b = --childrenLatch == 0;
+    boolean b = --childrenLatch == 0; // 是否是最后一个sub procedure
     if (LOG.isTraceEnabled()) {
       LOG.trace("CHILD LATCH DECREMENT " + childrenLatch, new Throwable(this.toString()));
     }
@@ -1032,6 +1032,7 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
    */
   protected static <T> Long getRootProcedureId(Map<Long, Procedure<T>> procedures,
       Procedure<T> proc) {
+    // 循环获取parent proc id
     while (proc.hasParent()) {
       proc = procedures.get(proc.getParentProcId());
       if (proc == null) {
