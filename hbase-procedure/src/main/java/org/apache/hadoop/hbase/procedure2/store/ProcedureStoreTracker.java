@@ -36,7 +36,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ProcedureProtos;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class ProcedureStoreTracker {
+public class ProcedureStoreTracker { // 跟踪Procedure的写入/更新与删除操作
   // Key is procedure id corresponding to first bit of the bitmap.
   private final TreeMap<Long, BitSetNode> map = new TreeMap<>();
 

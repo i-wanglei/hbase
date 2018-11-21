@@ -82,7 +82,7 @@ public class ProcedureWALFile implements Comparable<ProcedureWALFile> {
     }
 
     if (header == null) {
-      header = ProcedureWALFormat.readHeader(stream);
+      header = ProcedureWALFormat.readHeader(stream); // 读取文件header
       startPos = stream.getPos();
     } else {
       stream.seek(startPos);
@@ -161,14 +161,14 @@ public class ProcedureWALFile implements Comparable<ProcedureWALFile> {
     if (walArchiveDir != null) {
       Path archivedFile = new Path(walArchiveDir, logFile.getName());
       LOG.info("Archiving " + logFile + " to " + archivedFile);
-      if (!fs.rename(logFile, archivedFile)) {
+      if (!fs.rename(logFile, archivedFile)) { // 移动到oldWALs目录
         LOG.warn("Failed archive of " + logFile + ", deleting");
       } else {
         archived = true;
       }
     }
     if (!archived) {
-      if (!fs.delete(logFile, false)) {
+      if (!fs.delete(logFile, false)) { // 移动不成功，则删除
         LOG.warn("Failed delete of " + logFile);
       }
     }

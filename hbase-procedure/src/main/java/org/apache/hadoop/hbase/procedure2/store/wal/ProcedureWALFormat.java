@@ -85,7 +85,7 @@ public final class ProcedureWALFormat {
         ProcedureWALFile log = logs.next();
         log.open();
         try {
-          reader.read(log);
+          reader.read(log); // 读取procedure到procedureMap
         } finally {
           log.close();
         }

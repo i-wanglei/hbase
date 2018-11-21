@@ -450,11 +450,15 @@ public class ProcedureExecutor<TEnvironment> {
     });
   }
 
+  // 把procedure添加到相应的scheduler中
+  // waitingSet               -> timeoutExecutor
+  // failedList、runnableList -> scheduler
   private void loadProcedures(ProcedureIterator procIter, boolean abortOnCorruption)
       throws IOException {
     // 1. Build the rollback stack
     int runnablesCount = 0;
     int failedCount = 0;
+    // 根据状态，把procedure放到相应的数据结构中: completed、rollbackStack、procedures等
     while (procIter.hasNext()) {
       boolean finished = procIter.isNextFinished();
       Procedure<TEnvironment> proc = procIter.next();
@@ -646,7 +650,7 @@ public class ProcedureExecutor<TEnvironment> {
 
     // Acquire the store lease.
     st = System.nanoTime();
-    store.recoverLease(); // TODOWXY: 恢复租约
+    store.recoverLease(); // 恢复租约，初始化tracker
     et = System.nanoTime();
     LOG.info("Recovered {} lease in {}", store.getClass().getSimpleName(),
       StringUtils.humanTimeDiff(TimeUnit.NANOSECONDS.toMillis(et - st)));
@@ -660,7 +664,7 @@ public class ProcedureExecutor<TEnvironment> {
     // so we can start the threads and accept new procedures.
     // The second step will do the actual load of old procedures.
     st = System.nanoTime();
-    load(abortOnCorruption); // TODOWXY
+    load(abortOnCorruption); // 从procedure wal文件加载procedure，并添加到相应的scheduler中
     et = System.nanoTime();
     LOG.info("Loaded {} in {}", store.getClass().getSimpleName(),
       StringUtils.humanTimeDiff(TimeUnit.NANOSECONDS.toMillis(et - st)));
@@ -669,7 +673,7 @@ public class ProcedureExecutor<TEnvironment> {
   /**
    * Start the workers.
    */
-  public void startWorkers() throws IOException {
+  public void startWorkers() throws IOException { // 启动各个线程
     if (!running.compareAndSet(false, true)) {
       LOG.warn("Already running");
       return;

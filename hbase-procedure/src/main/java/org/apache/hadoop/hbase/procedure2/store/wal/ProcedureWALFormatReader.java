@@ -145,12 +145,14 @@ public class ProcedureWALFormatReader {
     try {
       boolean hasMore = true;
       while (hasMore) {
+        // 读一条entry
         ProcedureWALEntry entry = ProcedureWALFormat.readEntry(stream);
         if (entry == null) {
           LOG.warn("Nothing left to decode. Exiting with missing EOF, log=" + log);
           break;
         }
         count++;
+        // 添加procedure到localProcedureMap
         switch (entry.getType()) {
           case PROCEDURE_WAL_INIT:
             readInitEntry(entry);
@@ -183,7 +185,7 @@ public class ProcedureWALFormatReader {
     }
     if (!localProcedureMap.isEmpty()) {
       log.setProcIds(localProcedureMap.getMinProcId(), localProcedureMap.getMaxProcId());
-      procedureMap.mergeTail(localProcedureMap);
+      procedureMap.mergeTail(localProcedureMap); // 合并localProcedureMap到procedureMap
 
       //if (hasFastStartSupport) {
       // TODO: Some procedure may be already runnables (see readInitEntry())
@@ -201,7 +203,7 @@ public class ProcedureWALFormatReader {
     loader.setMaxProcId(maxProcId);
 
     // fetch the procedure ready to run.
-    ProcedureIterator procIter = procedureMap.fetchReady();
+    ProcedureIterator procIter = procedureMap.fetchReady(); // 获取ready状态的procedure
     if (procIter != null) loader.load(procIter);
 
     // remaining procedures have missing link or dependencies
@@ -210,7 +212,7 @@ public class ProcedureWALFormatReader {
     if (procIter != null) loader.handleCorrupted(procIter);
   }
 
-  private void loadProcedure(final ProcedureWALEntry entry, final ProcedureProtos.Procedure proc) {
+  private void loadProcedure(final ProcedureWALEntry entry, final ProcedureProtos.Procedure proc) { // 添加到localProcedureMap
     maxProcId = Math.max(maxProcId, proc.getProcId());
     if (isRequired(proc.getProcId())) {
       if (LOG.isTraceEnabled()) {
@@ -286,7 +288,7 @@ public class ProcedureWALFormatReader {
     return tracker.isDeleted(procId) == ProcedureStoreTracker.DeleteState.YES;
   }
 
-  private boolean isRequired(final long procId) {
+  private boolean isRequired(final long procId) { // 没被删除，且之前没被读过
     return !isDeleted(procId) && !procedureMap.contains(procId);
   }
 
@@ -589,7 +591,7 @@ public class ProcedureWALFormatReader {
      * to be added to the executor.
      * A Procedure is ready if its children and parent are ready.
      */
-    public EntryIterator fetchReady() {
+    public EntryIterator fetchReady() { // 获取ready状态的procedure
       buildGraph();
 
       Entry readyHead = null;
@@ -700,7 +702,7 @@ public class ProcedureWALFormatReader {
      *
      * There is a gap between A stackIds so something was executed in between.
      */
-    private boolean checkReadyToRun(Entry rootEntry) {
+    private boolean checkReadyToRun(Entry rootEntry) { // parent以及所有的子procedure都加载到内存中，即为ready
       assert !rootEntry.hasParent() : "expected root procedure, got " + rootEntry;
 
       if (rootEntry.isFinished()) {

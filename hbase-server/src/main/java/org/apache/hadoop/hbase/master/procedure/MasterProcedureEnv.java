@@ -42,7 +42,7 @@ import org.apache.hadoop.hbase.util.FSUtils;
 
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class MasterProcedureEnv implements ConfigurationObserver {
+public class MasterProcedureEnv implements ConfigurationObserver { // 保存一些常用对象的引用
   private static final Logger LOG = LoggerFactory.getLogger(MasterProcedureEnv.class);
 
   @InterfaceAudience.Private
@@ -57,6 +57,7 @@ public class MasterProcedureEnv implements ConfigurationObserver {
     public void recoverFileLease(final FileSystem fs, final Path path) throws IOException {
       final Configuration conf = master.getConfiguration();
       final FSUtils fsUtils = FSUtils.getInstance(fs, conf);
+      // 通知hdfs理解恢复租约
       fsUtils.recoverFileLease(fs, path, conf, new CancelableProgressable() {
         @Override
         public boolean progress() {

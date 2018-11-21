@@ -280,7 +280,7 @@ public class FSHDFSUtils extends FSUtils {
   throws FileNotFoundException {
     boolean recovered = false;
     try {
-      recovered = dfs.recoverLease(p);
+      recovered = dfs.recoverLease(p); // 通知HDFS立即恢复租约
       LOG.info((recovered? "Recovered lease, ": "Failed to recover lease, ") +
         getLogMessageDetail(nbAttempt, p, startWaiting));
     } catch (IOException e) {

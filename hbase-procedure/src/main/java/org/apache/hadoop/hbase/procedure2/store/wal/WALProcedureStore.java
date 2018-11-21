@@ -371,9 +371,11 @@ public class WALProcedureStore extends ProcedureStoreBase {
         } else {
           afterFirstAttempt = true;
         }
+        // step 1: 获取procedure wal文件列表
         FileStatus[] oldLogs = getLogFiles();
         // Get Log-MaxID and recover lease on old logs
         try {
+          // step 2: 恢复租约，初始化tracker
           flushLogId = initOldLogs(oldLogs);
         } catch (FileNotFoundException e) {
           LOG.warn("Someone else is active and deleted logs. retrying.", e);
@@ -381,6 +383,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
         }
 
         // Create new state-log
+        // step 3: 创建新的wal文件
         if (!rollWriter(flushLogId + 1)) {
           // someone else has already created this log
           LOG.debug("Someone else has already created log {}. Retrying.", flushLogId);
@@ -388,12 +391,12 @@ public class WALProcedureStore extends ProcedureStoreBase {
         }
 
         // We have the lease on the log
-        oldLogs = getLogFiles();
+        oldLogs = getLogFiles(); // 再次获取wal log文件列表
         if (getMaxLogId(oldLogs) > flushLogId) {
           if (LOG.isDebugEnabled()) {
             LOG.debug("Someone else created new logs. Expected maxLogId < " + flushLogId);
           }
-          logs.getLast().removeFile(this.walArchiveDir);
+          logs.getLast().removeFile(this.walArchiveDir); // 移动最后一个wal文件(最大id)到oldWALs目录
           continue;
         }
 
@@ -1027,9 +1030,9 @@ public class WALProcedureStore extends ProcedureStoreBase {
     FSDataOutputStream newStream = null;
     Path newLogFile = null;
     long startPos = -1;
-    newLogFile = getLogFilePath(logId);
+    newLogFile = getLogFilePath(logId); // 新wal log文件名
     try {
-      newStream = CommonFSUtils.createForWal(fs, newLogFile, false);
+      newStream = CommonFSUtils.createForWal(fs, newLogFile, false); // 创建文件
     } catch (FileAlreadyExistsException e) {
       LOG.error("Log file with id=" + logId + " already exists", e);
       return false;
@@ -1049,7 +1052,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
           CommonFSUtils.HBASE_WAL_DIR + "' points to a FileSystem mount that can provide it.");
     }
     try {
-      ProcedureWALFormat.writeHeader(newStream, header);
+      ProcedureWALFormat.writeHeader(newStream, header); // 写文件头
       startPos = newStream.getPos();
     } catch (IOException ioe) {
       LOG.warn("Encountered exception writing header", ioe);
@@ -1057,11 +1060,11 @@ public class WALProcedureStore extends ProcedureStoreBase {
       return false;
     }
 
-    closeCurrentLogStream();
+    closeCurrentLogStream(); // 写入文件尾信息，并关闭文件
 
     storeTracker.resetUpdates();
     stream = newStream;
-    flushLogId = logId;
+    flushLogId = logId; // 更新flushLogId
     totalSynced.set(0);
     long rollTs = System.currentTimeMillis();
     lastRollTs.set(rollTs);
@@ -1069,7 +1072,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
 
     // if it's the first next WAL being added, build the holding cleanup tracker
     if (logs.size() == 2) {
-      buildHoldingCleanupTracker();
+      buildHoldingCleanupTracker(); // 跟踪什么时候wal文件可以被删除
     } else if (logs.size() > walCountWarnThreshold) {
       LOG.warn("procedure WALs count=" + logs.size() +
         " above the warning threshold " + walCountWarnThreshold +
@@ -1089,7 +1092,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
       ProcedureWALFile log = logs.getLast();
       log.setProcIds(storeTracker.getUpdatedMinProcId(), storeTracker.getUpdatedMaxProcId());
       log.updateLocalTracker(storeTracker);
-      long trailerSize = ProcedureWALFormat.writeTrailer(stream, storeTracker);
+      long trailerSize = ProcedureWALFormat.writeTrailer(stream, storeTracker); // 写入文件尾信息
       log.addToSize(trailerSize);
     } catch (IOException e) {
       LOG.warn("Unable to write the trailer: " + e.getMessage());
@@ -1225,7 +1228,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
   private FileStatus[] getLogFiles() throws IOException {
     try {
       FileStatus[] files = fs.listStatus(walDir, WALS_PATH_FILTER);
-      Arrays.sort(files, FILE_STATUS_ID_COMPARATOR);
+      Arrays.sort(files, FILE_STATUS_ID_COMPARATOR); // 根据logId排序
       return files;
     } catch (FileNotFoundException e) {
       LOG.warn("Log directory not found: " + e.getMessage());
@@ -1253,19 +1256,19 @@ public class WALProcedureStore extends ProcedureStoreBase {
     if (logFiles != null && logFiles.length > 0) {
       for (int i = 0; i < logFiles.length; ++i) {
         final Path logPath = logFiles[i].getPath();
-        leaseRecovery.recoverFileLease(fs, logPath);
+        leaseRecovery.recoverFileLease(fs, logPath); // 通知HDFS立即恢复此文件的租约
         if (!isRunning()) {
           throw new IOException("wal aborting");
         }
 
-        maxLogId = Math.max(maxLogId, getLogIdFromName(logPath.getName()));
-        ProcedureWALFile log = initOldLog(logFiles[i], this.walArchiveDir);
+        maxLogId = Math.max(maxLogId, getLogIdFromName(logPath.getName())); // 文件名上的id是此文件包含的最大的id
+        ProcedureWALFile log = initOldLog(logFiles[i], this.walArchiveDir); // 主要是初始化ProcedureStoreTracker
         if (log != null) {
           this.logs.add(log);
         }
       }
       Collections.sort(this.logs);
-      initTrackerFromOldLogs();
+      initTrackerFromOldLogs(); // 确定生效的tracker
     }
     return maxLogId;
   }
@@ -1278,8 +1281,8 @@ public class WALProcedureStore extends ProcedureStoreBase {
   private void initTrackerFromOldLogs() {
     if (logs.isEmpty() || !isRunning()) return;
     ProcedureWALFile log = logs.getLast();
-    if (!log.getTracker().isPartial()) {
-      storeTracker.resetTo(log.getTracker());
+    if (!log.getTracker().isPartial()) { // 最后一个wal文件是否完整
+      storeTracker.resetTo(log.getTracker()); // 完整，则用最后一个wal文件的tracker
     } else {
       storeTracker.reset();
       storeTracker.setPartialFlag(true);
@@ -1301,7 +1304,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
       LOG.debug("Opening Pv2 " + logFile);
     }
     try {
-      log.open();
+      log.open(); // 打开文件，并读取文件头
     } catch (ProcedureWALFormat.InvalidWALDataException e) {
       LOG.warn("Remove uninitialized log: " + logFile, e);
       log.removeFile(walArchiveDir);
@@ -1313,14 +1316,14 @@ public class WALProcedureStore extends ProcedureStoreBase {
     }
 
     try {
-      log.readTracker();
+      log.readTracker(); // 初始化ProcedureStoreTracker
     } catch (IOException e) {
       log.getTracker().reset();
-      log.getTracker().setPartialFlag(true);
+      log.getTracker().setPartialFlag(true); // 如果抛异常，说明文件不完整
       LOG.warn("Unable to read tracker for " + log + " - " + e.getMessage());
     }
 
-    log.close();
+    log.close(); // 关闭文件
     return log;
   }
 }
