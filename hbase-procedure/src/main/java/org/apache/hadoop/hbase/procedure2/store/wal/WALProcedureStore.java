@@ -271,7 +271,7 @@ public class WALProcedureStore extends ProcedureStoreBase {
       @Override
       public void run() {
         try {
-          syncLoop();
+          syncLoop(); // sync procedure wal 日志
         } catch (Throwable e) {
           LOG.error("Got an exception from the sync-loop", e);
           if (!isSyncAborted()) {
@@ -881,11 +881,11 @@ public class WALProcedureStore extends ProcedureStoreBase {
     long totalSynced = 0;
     for (int i = 0; i < count; ++i) {
       final ByteSlot data = slots[offset + i];
-      data.writeTo(stream);
+      data.writeTo(stream); // 写数据
       totalSynced += data.size();
     }
 
-    syncStream(stream);
+    syncStream(stream); // sync到HDFS
     sendPostSyncSignal();
 
     if (LOG.isTraceEnabled()) {

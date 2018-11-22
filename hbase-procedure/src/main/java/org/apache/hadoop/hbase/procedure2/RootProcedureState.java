@@ -48,8 +48,8 @@ class RootProcedureState<TEnvironment> { // 描述root procedure的状态
     ROLLINGBACK,     // The Procedure failed and the execution was rolledback
   }
 
-  private Set<Procedure<TEnvironment>> subprocs = null;
-  private ArrayList<Procedure<TEnvironment>> subprocStack = null;
+  private Set<Procedure<TEnvironment>> subprocs = null; // 所包含的procedure
+  private ArrayList<Procedure<TEnvironment>> subprocStack = null; // procedure顺序，可能重复
   private State state = State.RUNNING;
   private int running = 0;
 

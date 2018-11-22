@@ -169,6 +169,7 @@ public class ProcedureExecutor<TEnvironment> {
       this.clientAckTime = clientAckTime;
     }
 
+    // 默认情况下：客户端5分钟内没有ack 或者 超过10分钟
     public boolean isExpired(long now, long evictTtl, long evictAckTtl) {
       return (hasClientAckTime() && (now - getClientAckTime()) >= evictAckTtl) ||
         (now - procedure.getLastUpdate()) >= evictTtl;
@@ -262,7 +263,7 @@ public class ProcedureExecutor<TEnvironment> {
           if (nonceKey != null) {
             nonceKeysToProcIdsMap.remove(nonceKey);
           }
-          it.remove();
+          it.remove(); // 从completed map中删除
           LOG.trace("Evict completed {}", proc);
         }
       }
@@ -277,6 +278,8 @@ public class ProcedureExecutor<TEnvironment> {
    * Once a Root-Procedure completes (success or failure), the result will be added to this map.
    * The user of ProcedureExecutor should call getResult(procId) to get the result.
    */
+  // 当procedure执行完之后（成功或事变），会添加到这个map
+  // 当客户端查询一个procedure的执行结果时，可以从这里获取，过一定的时间之后，会被删除
   private final ConcurrentHashMap<Long, CompletedProcedureRetainer<TEnvironment>> completed =
     new ConcurrentHashMap<>();
 
@@ -1419,8 +1422,9 @@ public class ProcedureExecutor<TEnvironment> {
     }
     do {
       // Try to acquire the execution
+      // step 1: 获取锁，失败则判断是否可以回滚
       if (!procStack.acquire(proc)) { // root procedure状态是否为RUNNING
-        if (procStack.setRollback()) { // 设置root procedure状态为ROLLINGBACK
+        if (procStack.setRollback()) { // 当前没有正在执行的sub procedure，并且状态为FAILED
           // we have the 'rollback-lock' we can start rollingback
           switch (executeRollback(rootProcId, procStack)) { // 回滚
             case LOCK_ACQUIRED:
@@ -1440,7 +1444,7 @@ public class ProcedureExecutor<TEnvironment> {
           // if we can't rollback means that some child is still running.
           // the rollback will be executed after all the children are done.
           // If the procedure was never executed, remove and mark it as rolledback.
-          if (!proc.wasExecuted()) {
+          if (!proc.wasExecuted()) { // procedure是否从未执行过
             switch (executeRollback(proc)) {
               case LOCK_ACQUIRED:
                 break;
@@ -1464,11 +1468,9 @@ public class ProcedureExecutor<TEnvironment> {
       // Note that lock is NOT about concurrency but rather about ensuring
       // ownership of a procedure of an entity such as a region or table
 
-      // TODOWXY: 获取环境锁
-      // 环境锁确保一个Table只能被一个Procedure处理，
-      // 首先获取Namespace的共享锁，避免正在操作表时，namespace被删除
-      // 获取Table的互斥锁，避免对一个Table的多个操作同时执行
+      // 获取环境锁
       LockState lockState = acquireLock(proc);
+      // step 2: 执行procedure
       switch (lockState) {
         case LOCK_ACQUIRED:
           execProcedure(procStack, proc); // 执行procedure
@@ -1486,6 +1488,7 @@ public class ProcedureExecutor<TEnvironment> {
       }
       procStack.release(proc); // 计数减1
 
+      // step 3: 执行成功，执行清理操作
       if (proc.isSuccess()) {
         // update metrics on finishing the procedure
         proc.updateMetricsOnFinish(getEnvironment(), proc.elapsedTime(), true);
@@ -1498,9 +1501,13 @@ public class ProcedureExecutor<TEnvironment> {
         }
         break;
       }
-    } while (procStack.isFailed());
+    } while (procStack.isFailed()); // 失败则重试
   }
 
+  // TODOWXY: 获取环境锁
+  // 环境锁确保一个Table只能被一个Procedure处理，
+  // 首先获取Namespace的共享锁，避免正在操作表时，namespace被删除
+  // 获取Table的互斥锁，避免对一个Table的多个操作同时执行
   private LockState acquireLock(Procedure<TEnvironment> proc) {
     TEnvironment env = getEnvironment();
     // if holdLock is true, then maybe we already have the lock, so just return LOCK_ACQUIRED if
@@ -1539,7 +1546,7 @@ public class ProcedureExecutor<TEnvironment> {
     assert subprocStack != null : "Called rollback with no steps executed rootProc=" + rootProc;
 
     int stackTail = subprocStack.size();
-    while (stackTail-- > 0) {
+    while (stackTail-- > 0) { // 倒序一个一个procedure回滚
       Procedure<TEnvironment> proc = subprocStack.get(stackTail);
 
       LockState lockState = acquireLock(proc);
@@ -1549,7 +1556,7 @@ public class ProcedureExecutor<TEnvironment> {
         return lockState;
       }
 
-      lockState = executeRollback(proc);
+      lockState = executeRollback(proc); // 回滚procedure
       releaseLock(proc, false);
       boolean abortRollback = lockState != LockState.LOCK_ACQUIRED;
       abortRollback |= !isRunning() || !store.isRunning();
@@ -1585,7 +1592,7 @@ public class ProcedureExecutor<TEnvironment> {
    * It updates the store with the new state (stack index)
    * or will remove completly the procedure in case it is a child.
    */
-  private LockState executeRollback(Procedure<TEnvironment> proc) {
+  private LockState executeRollback(Procedure<TEnvironment> proc) { // 回滚procedure，并在store中标记删除
     try {
       proc.doRollback(getEnvironment());
     } catch (IOException e) {
@@ -1692,7 +1699,7 @@ public class ProcedureExecutor<TEnvironment> {
         }
       } catch (ProcedureSuspendedException e) {
         LOG.trace("Suspend {}", procedure);
-        suspended = true;
+        suspended = true; // 啥也不干，等着sub procedure执行完之后，重新提交此procedure？
       } catch (ProcedureYieldException e) {
         LOG.trace("Yield {}", procedure, e);
         yieldProcedure(procedure);
@@ -1796,7 +1803,7 @@ public class ProcedureExecutor<TEnvironment> {
 
     // if the procedure is complete and has a parent, count down the children latch.
     // If 'suspended', do nothing to change state -- let other threads handle unsuspend event.
-    // step 7: 如果没有挂起，当前procedure已经完成，所有的sub procedure也完成了，则提交parent procedure
+    // step 7: 如果没有挂起，当前procedure已经完成，所有的sub procedure也完成了，则重新提交parent procedure
     if (!suspended && procedure.isFinished() && procedure.hasParent()) {
       countDownChildren(procStack, procedure);
     }
@@ -1939,6 +1946,7 @@ public class ProcedureExecutor<TEnvironment> {
       retainer.setClientAckTime(0);
     }
 
+    // 从容器中删除procedure
     completed.put(proc.getProcId(), retainer);
     rollbackStack.remove(proc.getProcId());
     procedures.remove(proc.getProcId());
