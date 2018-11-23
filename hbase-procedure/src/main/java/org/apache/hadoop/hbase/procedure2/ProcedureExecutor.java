@@ -1094,7 +1094,7 @@ public class ProcedureExecutor<TEnvironment> {
   public long submitProcedure(Procedure<TEnvironment> proc, NonceKey nonceKey) {
     Preconditions.checkArgument(lastProcId.get() >= 0);
 
-    // step 1: 必要检查：确保无Parent Procedure等
+    // step 1: 必要检查：确保无Parent Procedure等，这样提交的都是parent procedure
     prepareProcedure(proc);
 
     final Long currentProcId;

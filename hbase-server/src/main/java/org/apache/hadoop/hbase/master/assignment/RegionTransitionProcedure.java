@@ -257,7 +257,7 @@ public abstract class RegionTransitionProcedure
     // ditto up in the caller; it needs to undo state changes. Inside in remoteCallFailed, it does
     // wake to undo the above suspend.
     try {
-      env.getRemoteDispatcher().addOperationToNode(targetServer, this);
+      env.getRemoteDispatcher().addOperationToNode(targetServer, this); // 添加到rs节点的操作队列
     } catch (FailedRemoteDispatchException frde) {
       remoteCallFailed(env, targetServer, frde);
       return false;
@@ -313,8 +313,8 @@ public abstract class RegionTransitionProcedure
   @Override
   protected Procedure[] execute(final MasterProcedureEnv env) throws ProcedureSuspendedException {
     final AssignmentManager am = env.getAssignmentManager();
-    final RegionStateNode regionNode = getRegionState(env);
-    if (!am.addRegionInTransition(regionNode, this)) {
+    final RegionStateNode regionNode = getRegionState(env); // master内存中保存的region状态
+    if (!am.addRegionInTransition(regionNode, this)) { // 加到rit map
       String msg = String.format(
         "There is already another procedure running on this region this=%s owner=%s",
         this, regionNode.getProcedure());
@@ -331,7 +331,7 @@ public abstract class RegionTransitionProcedure
             // 1. push into the AM queue for balancer policy
             if (!startTransition(env, regionNode)) {
               // The operation figured it is done or it aborted; check getException()
-              am.removeRegionInTransition(getRegionState(env), this);
+              am.removeRegionInTransition(getRegionState(env), this); // 从rit map移除
               return null;
             }
             transitionState = RegionTransitionState.REGION_TRANSITION_DISPATCH;

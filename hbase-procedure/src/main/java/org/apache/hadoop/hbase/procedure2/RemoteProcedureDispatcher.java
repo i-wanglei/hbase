@@ -176,7 +176,7 @@ public abstract class RemoteProcedureDispatcher<TEnv, TRemote extends Comparable
       // is expired in ServerManager. ServerCrashProcedure may or may not have run.
       throw new NoServerDispatchException(key.toString() + "; " + rp.toString());
     }
-    node.add(rp);
+    node.add(rp); // 操作队列
     // Check our node still in the map; could have been removed by #removeNode.
     if (!nodeMap.containsValue(node)) {
       throw new NoNodeDispatchException(key.toString() + "; " + rp.toString());

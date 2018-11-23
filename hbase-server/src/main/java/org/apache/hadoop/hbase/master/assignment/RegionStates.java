@@ -136,7 +136,7 @@ public class RegionStates {
      * @return true, if current state is in expected list; otherwise false.
      */
     public boolean setState(final State update, final State... expected) {
-      if (!isInState(expected)) {
+      if (!isInState(expected)) { // 是否在期望状态列表中
         return false;
       }
       this.state = update;
@@ -939,7 +939,7 @@ public class RegionStates {
       final RegionTransitionProcedure procedure) {
     if (procedure != null && !regionNode.setProcedure(procedure)) return false;
 
-    regionInTransition.put(regionNode.getRegionInfo(), regionNode);
+    regionInTransition.put(regionNode.getRegionInfo(), regionNode); // 加到rit map
     return true;
   }
 

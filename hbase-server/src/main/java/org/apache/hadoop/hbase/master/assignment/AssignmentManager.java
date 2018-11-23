@@ -1020,7 +1020,7 @@ public class AssignmentManager implements ServerListener {
     }
   }
 
-  protected boolean waitServerReportEvent(ServerName serverName, Procedure<?> proc) {
+  protected boolean waitServerReportEvent(ServerName serverName, Procedure<?> proc) { // 如果没ready，就挂起
     final ServerStateNode serverNode = regionStates.getOrCreateServer(serverName);
     if (serverNode == null) {
       LOG.warn("serverName=null; {}", proc);
@@ -1385,9 +1385,9 @@ public class AssignmentManager implements ServerListener {
 
   public void markRegionAsOpening(final RegionStateNode regionNode) throws IOException {
     synchronized (regionNode) {
-      regionNode.transitionState(State.OPENING, RegionStates.STATES_EXPECTED_ON_OPEN);
+      regionNode.transitionState(State.OPENING, RegionStates.STATES_EXPECTED_ON_OPEN); // 修改当前状态为OPENING
       regionStates.addRegionToServer(regionNode);
-      regionStateStore.updateRegionLocation(regionNode);
+      regionStateStore.updateRegionLocation(regionNode); // 更新region location
     }
 
     // update the operation count metrics
@@ -1411,7 +1411,7 @@ public class AssignmentManager implements ServerListener {
   public void markRegionAsOpened(final RegionStateNode regionNode) throws IOException {
     final RegionInfo hri = regionNode.getRegionInfo();
     synchronized (regionNode) {
-      regionNode.transitionState(State.OPEN, RegionStates.STATES_EXPECTED_ON_OPEN);
+      regionNode.transitionState(State.OPEN, RegionStates.STATES_EXPECTED_ON_OPEN); // 修改region状态为OPEN
       if (isMetaRegion(hri)) {
         // Usually we'd set a table ENABLED at this stage but hbase:meta is ALWAYs enabled, it
         // can't be disabled -- so skip the RPC (besides... enabled is managed by TableStateManager
@@ -1422,7 +1422,7 @@ public class AssignmentManager implements ServerListener {
       regionStates.addRegionToServer(regionNode);
       // TODO: OPENING Updates hbase:meta too... we need to do both here and there?
       // That is a lot of hbase:meta writing.
-      regionStateStore.updateRegionLocation(regionNode);
+      regionStateStore.updateRegionLocation(regionNode); // 更新meta表
       sendRegionOpenedNotification(hri, regionNode.getRegionLocation());
     }
   }
@@ -1526,12 +1526,12 @@ public class AssignmentManager implements ServerListener {
    * and each region will be assigned by a server using the balancer.
    */
   protected void queueAssign(final RegionStateNode regionNode) {
-    regionNode.getProcedureEvent().suspend();
+    regionNode.getProcedureEvent().suspend(); // 挂起当前procedure
 
     // TODO: quick-start for meta and the other sys-tables?
     assignQueueLock.lock();
     try {
-      pendingAssignQueue.add(regionNode);
+      pendingAssignQueue.add(regionNode); // 添加到分配队列
       if (regionNode.isSystemTable() ||
           pendingAssignQueue.size() == 1 ||
           pendingAssignQueue.size() >= assignDispatchWaitQueueMaxSize) {

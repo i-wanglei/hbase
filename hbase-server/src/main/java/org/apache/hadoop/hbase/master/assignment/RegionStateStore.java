@@ -130,11 +130,13 @@ public class RegionStateStore {
   public void updateRegionLocation(RegionStates.RegionStateNode regionStateNode)
       throws IOException {
     if (regionStateNode.getRegionInfo().isMetaRegion()) {
+      // 更新zk，meta server地址
       updateMetaLocation(regionStateNode.getRegionInfo(), regionStateNode.getRegionLocation(),
         regionStateNode.getState());
     } else {
       long openSeqNum = regionStateNode.getState() == State.OPEN ? regionStateNode.getOpenSeqNum()
         : HConstants.NO_SEQNUM;
+      // 更新meta表
       updateUserRegionLocation(regionStateNode.getRegionInfo(), regionStateNode.getState(),
           regionStateNode.getRegionLocation(), openSeqNum,
           // The regionStateNode may have no procedure in a test scenario; allow for this.
@@ -195,7 +197,7 @@ public class RegionStateStore {
     updateRegionLocation(regionInfo, state, put);
   }
 
-  private void updateRegionLocation(RegionInfo regionInfo, State state, Put put)
+  private void updateRegionLocation(RegionInfo regionInfo, State state, Put put) // 更新meta表
       throws IOException {
     try (Table table = master.getConnection().getTable(TableName.META_TABLE_NAME)) {
       table.put(put);
@@ -205,7 +207,7 @@ public class RegionStateStore {
       String msg = String.format("FAILED persisting region=%s state=%s",
         regionInfo.getShortNameToLog(), state);
       LOG.error(msg, e);
-      master.abort(msg, e);
+      master.abort(msg, e); // shutdown master
       throw e;
     }
   }

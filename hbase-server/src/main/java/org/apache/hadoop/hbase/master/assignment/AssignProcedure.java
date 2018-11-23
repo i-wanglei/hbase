@@ -159,30 +159,32 @@ public class AssignProcedure extends RegionTransitionProcedure {
   @Override
   protected boolean startTransition(final MasterProcedureEnv env, final RegionStateNode regionNode)
       throws IOException {
+    // step 1: 条件检查: open、disable、split，则返回
     // If the region is already open we can't do much...
-    if (regionNode.isInState(State.OPEN) && isServerOnline(env, regionNode)) {
+    if (regionNode.isInState(State.OPEN) && isServerOnline(env, regionNode)) { // region已经open
       LOG.info("Assigned, not reassigning; " + this + "; " + regionNode.toShortString());
       return false;
     }
     // Don't assign if table is in disabling or disabled state.
     TableStateManager tsm = env.getMasterServices().getTableStateManager();
     TableName tn = regionNode.getRegionInfo().getTable();
-    if (tsm.getTableState(tn).isDisabledOrDisabling()) {
+    if (tsm.getTableState(tn).isDisabledOrDisabling()) { // 表当前处于disable状态
       LOG.info("Table " + tn + " state=" + tsm.getTableState(tn) + ", skipping " + this);
       return false;
     }
     // If the region is SPLIT, we can't assign it. But state might be CLOSED, rather than
     // SPLIT which is what a region gets set to when unassigned as part of SPLIT. FIX.
     if (regionNode.isInState(State.SPLIT) ||
-        (regionNode.getRegionInfo().isOffline() && regionNode.getRegionInfo().isSplit())) {
+        (regionNode.getRegionInfo().isOffline() && regionNode.getRegionInfo().isSplit())) { // region处于split状态
       LOG.info("SPLIT, cannot be assigned; " + this + "; " + regionNode +
         "; hri=" + regionNode.getRegionInfo());
       return false;
     }
 
+    // step 2: 最多重试10次，设置procedure failed
     // If we haven't started the operation yet, we can abort
     if (aborted.get() && regionNode.isInState(State.CLOSED, State.OFFLINE)) {
-      if (incrementAndCheckMaxAttempts(env, regionNode)) {
+      if (incrementAndCheckMaxAttempts(env, regionNode)) { // 最多尝试10次
         regionNode.setState(State.FAILED_OPEN);
         setFailure(getClass().getSimpleName(),
           new RetriesExhaustedException("Max attempts exceeded"));
@@ -192,20 +194,21 @@ public class AssignProcedure extends RegionTransitionProcedure {
       return false;
     }
 
+    // step 3: 设置offline，清除region location
     // Send assign (add into assign-pool). We call regionNode.offline below to set state to
     // OFFLINE and to clear the region location. Setting a new regionLocation here is how we retain
     // old assignment or specify target server if a move or merge. See
     // AssignmentManager#processAssignQueue. Otherwise, balancer gives us location.
     // TODO: Region will be set into OFFLINE state below regardless of what its previous state was
     // This is dangerous? Wrong? What if region was in an unexpected state?
-    ServerName lastRegionLocation = regionNode.offline();
+    ServerName lastRegionLocation = regionNode.offline(); // 设置offline，清除region location
     boolean retain = false;
-    if (!forceNewPlan) {
+    if (!forceNewPlan) { // TODOWXY 什么时候触发重新制定计划
       if (this.targetServer != null) {
         retain = targetServer.equals(lastRegionLocation);
         regionNode.setRegionLocation(targetServer);
       } else {
-        if (lastRegionLocation != null) {
+        if (lastRegionLocation != null) { // 还用之前的region location
           // Try and keep the location we had before we offlined.
           retain = true;
           regionNode.setRegionLocation(lastRegionLocation);
@@ -219,7 +222,8 @@ public class AssignProcedure extends RegionTransitionProcedure {
     LOG.info("Starting " + this + "; " + regionNode.toShortString() +
         "; forceNewPlan=" + this.forceNewPlan +
         ", retain=" + retain);
-    env.getAssignmentManager().queueAssign(regionNode);
+    // step 4: 挂起自己，并添加到分配队列
+    env.getAssignmentManager().queueAssign(regionNode); // TODOWXY 添加到分配队列，然后呢？
     return true;
   }
 
@@ -231,19 +235,21 @@ public class AssignProcedure extends RegionTransitionProcedure {
     if (LOG.isTraceEnabled()) {
       LOG.trace("Update " + this + "; " + regionNode.toShortString());
     }
-    if (regionNode.getRegionLocation() == null) {
+    // step 1: 条件检查，是否指定rs，目标rs是否在线
+    if (regionNode.getRegionLocation() == null) { // 未分配region location
       setTransitionState(RegionTransitionState.REGION_TRANSITION_QUEUE);
       return true;
     }
 
-    if (!isServerOnline(env, regionNode)) {
+    if (!isServerOnline(env, regionNode)) { // 目标rs是否在线
       // TODO: is this correct? should we wait the chore/ssh?
       LOG.info("Server not online, re-queuing " + this + "; " + regionNode.toShortString());
       setTransitionState(RegionTransitionState.REGION_TRANSITION_QUEUE);
       return true;
     }
 
-    if (env.getAssignmentManager().waitServerReportEvent(regionNode.getRegionLocation(), this)) {
+    // step 2: 检查是否ready，没ready则挂起，什么时候ready？
+    if (env.getAssignmentManager().waitServerReportEvent(regionNode.getRegionLocation(), this)) { // 如果没ready，就挂起
       LOG.info("Early suspend! " + this + "; " + regionNode.toShortString());
       throw new ProcedureSuspendedException();
     }
@@ -253,6 +259,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
       return false;
     }
 
+    // step 3: 修改region状态为OPENING，并且更新meta表
     // Transition regionNode State. Set it to OPENING. Update hbase:meta, and add
     // region to list of regions on the target regionserver. Need to UNDO if failure!
     env.getAssignmentManager().markRegionAsOpening(regionNode);
@@ -260,6 +267,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     // TODO: Requires a migration to be open by the RS?
     // regionNode.getFormatVersion()
 
+    // step 4: // 添加到rs节点的操作队列，什么时候发给rs？
     if (!addToRemoteDispatcher(env, regionNode.getRegionLocation())) {
       // Failed the dispatch BUT addToRemoteDispatcher internally does
       // cleanup on failure -- even the undoing of markRegionAsOpening above --
