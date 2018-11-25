@@ -98,11 +98,12 @@ public class OpenRegionHandler extends EventHandler {
 
       // Check that we're still supposed to open the region.
       // If fails, just return.  Someone stole the region from under us.
-      if (!isRegionStillOpening()){
+      if (!isRegionStillOpening()){ // region是否应该继续open
         LOG.error("Region " + encodedName + " opening cancelled");
         return;
       }
 
+      // step 1: 打开region
       // Open region.  After a successful open, failures in subsequent
       // processing needs to do a close as part of cleanup.
       region = openRegion();
@@ -110,15 +111,17 @@ public class OpenRegionHandler extends EventHandler {
         return;
       }
 
+      // step 2: 向master汇报结果
       if (!updateMeta(region, masterSystemTime) || this.server.isStopped() ||
           this.rsServices.isStopping()) {
         return;
       }
 
-      if (!isRegionStillOpening()) {
+      if (!isRegionStillOpening()) { // region是否应该继续open
         return;
       }
 
+      // step 3: 添加到onlineRegions列表
       // Successful region open, and add it to MutableOnlineRegions
       this.rsServices.addRegion(region);
       openSuccessful = true;
@@ -157,9 +160,11 @@ public class OpenRegionHandler extends EventHandler {
       throws IOException {
     try {
       if (region != null) {
+        // close region并维护相关数据结构
         cleanupFailedOpen(region);
       }
     } finally {
+      // 向master汇报结果
       rsServices.reportRegionStateTransition(new RegionStateTransitionContext(
           TransitionCode.FAILED_OPEN, HConstants.NO_SEQNUM, -1, regionInfo));
     }
@@ -179,6 +184,7 @@ public class OpenRegionHandler extends EventHandler {
     // Object we do wait/notify on.  Make it boolean.  If set, we're done.
     // Else, wait.
     final AtomicBoolean signaller = new AtomicBoolean(false);
+    // 启个线程向master汇报结果
     PostOpenDeployTasksThread t = new PostOpenDeployTasksThread(r,
       this.server, this.rsServices, signaller, masterSystemTime);
     t.start();
@@ -306,8 +312,8 @@ public class OpenRegionHandler extends EventHandler {
 
   void cleanupFailedOpen(final HRegion region) throws IOException {
     if (region != null) {
-      this.rsServices.removeRegion(region, null);
-      region.close();
+      this.rsServices.removeRegion(region, null); // 维护一下数据结构
+      region.close(); // 关闭region
     }
   }
 

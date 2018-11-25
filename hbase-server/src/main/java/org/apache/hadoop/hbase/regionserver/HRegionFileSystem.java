@@ -871,6 +871,7 @@ public class HRegionFileSystem {
    * Write out an info file under the stored region directory. Useful recovering mangled regions.
    * If the regionInfo already exists on-disk, then we fast exit.
    */
+  // 检查.regioninfo文件是否正确（长度相同即可），不存在或不正确则重新生成
   void checkRegionInfoOnFilesystem() throws IOException {
     // Compose the content of the file so we can compare to length in filesystem. If not same,
     // rewrite it (it may have been written in the old format using Writables instead of pb). The
@@ -892,6 +893,7 @@ public class HRegionFileSystem {
     try {
       Path regionInfoFile = new Path(getRegionDir(), REGION_INFO_FILE);
       FileStatus status = fs.getFileStatus(regionInfoFile);
+      // 如果文件长度相同，则认为.regioninfo文件内容正确
       if (status != null && status.getLen() == content.length) {
         // Then assume the content good and move on.
         // NOTE: that the length is not sufficient to define the the content matches.
@@ -908,7 +910,7 @@ public class HRegionFileSystem {
     }
 
     // Write HRI to a file in case we need to recover hbase:meta
-    writeRegionInfoOnFilesystem(content, true);
+    writeRegionInfoOnFilesystem(content, true); // 生成.regioninfo文件
   }
 
   /**

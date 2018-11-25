@@ -77,7 +77,7 @@ public class MultiVersionConcurrencyControl {
       if (seqId >= newStartPoint) { // 如果currentWritePoint >= newStartPoint，则不需要设置新的point？
         break;
       }
-      if (this.tryAdvanceTo(newStartPoint, seqId)) { // 尝试设置新的point，直到成功
+      if (this.tryAdvanceTo(newStartPoint, seqId)) { // 尝试设置readPoint和writePoint为newStartPoint，直到成功
         break;
       }
     }
@@ -91,6 +91,7 @@ public class MultiVersionConcurrencyControl {
    * current <code>readPoint</code> or if <code>startPoint</code> is less than current
    * <code>readPoint</code>
    */
+  // 设置readPoint和writePoint为newStartPoint
   boolean tryAdvanceTo(long newStartPoint, long expected) {
     synchronized (writeQueue) {
       long currentRead = this.readPoint.get();

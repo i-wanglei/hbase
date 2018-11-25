@@ -250,14 +250,14 @@ public abstract class RegionTransitionProcedure
 
     // Put this procedure into suspended mode to wait on report of state change
     // from remote regionserver. Means Procedure associated ProcedureEvent is marked not 'ready'.
-    getRegionState(env).getProcedureEvent().suspend();
+    getRegionState(env).getProcedureEvent().suspend(); // 挂起
 
     // Tricky because the below call to addOperationToNode can fail. If it fails, we need to
     // backtrack on stuff like the 'suspend' done above -- tricky as the 'wake' requests us -- and
     // ditto up in the caller; it needs to undo state changes. Inside in remoteCallFailed, it does
     // wake to undo the above suspend.
     try {
-      env.getRemoteDispatcher().addOperationToNode(targetServer, this); // 添加到rs节点的操作队列
+      env.getRemoteDispatcher().addOperationToNode(targetServer, this); // 添加到RS操作队列
     } catch (FailedRemoteDispatchException frde) {
       remoteCallFailed(env, targetServer, frde);
       return false;
@@ -290,7 +290,7 @@ public abstract class RegionTransitionProcedure
     // processing to the next stage. At an extreme, the other worker may run in
     // parallel so DO  NOT CHANGE any state hereafter! This should be last thing
     // done in this processing step.
-    regionNode.getProcedureEvent().wake(env.getProcedureScheduler());
+    regionNode.getProcedureEvent().wake(env.getProcedureScheduler()); // 重新调度被挂起的procedure
   }
 
   protected boolean isServerOnline(final MasterProcedureEnv env, final RegionStateNode regionNode) {

@@ -326,7 +326,7 @@ public final class TableName implements Comparable<TableName> {
       this.nameAsString = qualifierAsString;
       this.name = this.qualifier;
     } else {
-      if (Bytes.equals(NamespaceDescriptor.SYSTEM_NAMESPACE_NAME, namespace)) {
+      if (Bytes.equals(NamespaceDescriptor.SYSTEM_NAMESPACE_NAME, namespace)) { // hbase namespace下的表，即为systemTable
         this.namespace = NamespaceDescriptor.SYSTEM_NAMESPACE_NAME;
         this.namespaceAsString = NamespaceDescriptor.SYSTEM_NAMESPACE_NAME_STR;
         this.systemTable = true;

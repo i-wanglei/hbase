@@ -177,6 +177,7 @@ public class UnassignProcedure extends RegionTransitionProcedure {
     }
   }
 
+  // 直接从REGION_TRANSITION_DISPATCH开始，不需要执行此步骤
   @Override
   protected boolean startTransition(final MasterProcedureEnv env, final RegionStateNode regionNode) {
     // nothing to do here. we skip the step in the constructor
@@ -184,6 +185,7 @@ public class UnassignProcedure extends RegionTransitionProcedure {
     throw new UnsupportedOperationException();
   }
 
+  // 发送close请求给RS
   @Override
   protected boolean updateTransition(final MasterProcedureEnv env, final RegionStateNode regionNode)
         throws IOException {
@@ -218,7 +220,7 @@ public class UnassignProcedure extends RegionTransitionProcedure {
     AssignmentManager am = env.getAssignmentManager();
     RegionInfo regionInfo = getRegionInfo();
 
-    if (!removeAfterUnassigning) {
+    if (!removeAfterUnassigning) { // 是否删除内存中的状态
       am.markRegionAsClosed(regionNode);
     } else {
       // Remove from in-memory states
@@ -308,7 +310,7 @@ public class UnassignProcedure extends RegionTransitionProcedure {
       ServerName serverName = regionNode.getRegionLocation();
       LOG.warn("Expiring {}, {} {}; exception={}", serverName, this, regionNode.toShortString(),
           exception.getClass().getSimpleName());
-      if (!env.getMasterServices().getServerManager().expireServer(serverName)) {
+      if (!env.getMasterServices().getServerManager().expireServer(serverName)) { // shutdown目标RS
         // Failed to queue an expire. Lots of possible reasons including it may be already expired.
         // In ServerCrashProcedure and RecoverMetaProcedure, there is a handleRIT stage where we
         // will iterator over all the RIT procedures for the related regions of a crashed RS and

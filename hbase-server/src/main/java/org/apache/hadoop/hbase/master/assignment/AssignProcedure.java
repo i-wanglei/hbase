@@ -156,6 +156,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     }
   }
 
+  // 添加到AM的region待分配队列（pendingAssignQueue），assignThread通过Balancer选择合适的RS，制定分配计划
   @Override
   protected boolean startTransition(final MasterProcedureEnv env, final RegionStateNode regionNode)
       throws IOException {
@@ -203,7 +204,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     // This is dangerous? Wrong? What if region was in an unexpected state?
     ServerName lastRegionLocation = regionNode.offline(); // 设置offline，清除region location
     boolean retain = false;
-    if (!forceNewPlan) { // TODOWXY 什么时候触发重新制定计划
+    if (!forceNewPlan) { //  dispatcher失败时，会触发重新制定计划
       if (this.targetServer != null) {
         retain = targetServer.equals(lastRegionLocation);
         regionNode.setRegionLocation(targetServer);
@@ -222,11 +223,12 @@ public class AssignProcedure extends RegionTransitionProcedure {
     LOG.info("Starting " + this + "; " + regionNode.toShortString() +
         "; forceNewPlan=" + this.forceNewPlan +
         ", retain=" + retain);
-    // step 4: 挂起自己，并添加到分配队列
-    env.getAssignmentManager().queueAssign(regionNode); // TODOWXY 添加到分配队列，然后呢？
+    // step 4: 挂起自己，并添加到待分配队列，assignThread将制定分配计划，并把当前procedure重新添加到scheduler
+    env.getAssignmentManager().queueAssign(regionNode);
     return true;
   }
 
+  // 发送open请求给RS
   @Override
   protected boolean updateTransition(final MasterProcedureEnv env, final RegionStateNode regionNode)
   throws IOException, ProcedureSuspendedException {
@@ -248,7 +250,8 @@ public class AssignProcedure extends RegionTransitionProcedure {
       return true;
     }
 
-    // step 2: 检查是否ready，没ready则挂起，什么时候ready？
+    // step 2: 检查是否ready，没ready则挂起，
+    // 什么时候ready？ AM.assignThread制定完分配计划，将修改ready状态
     if (env.getAssignmentManager().waitServerReportEvent(regionNode.getRegionLocation(), this)) { // 如果没ready，就挂起
       LOG.info("Early suspend! " + this + "; " + regionNode.toShortString());
       throw new ProcedureSuspendedException();
@@ -267,7 +270,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     // TODO: Requires a migration to be open by the RS?
     // regionNode.getFormatVersion()
 
-    // step 4: // 添加到rs节点的操作队列，什么时候发给rs？
+    // step 4: // 添加到RS操作队列，并稍后下发open请求
     if (!addToRemoteDispatcher(env, regionNode.getRegionLocation())) {
       // Failed the dispatch BUT addToRemoteDispatcher internally does
       // cleanup on failure -- even the undoing of markRegionAsOpening above --
@@ -281,6 +284,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     return true;
   }
 
+  // region open成功，更新meta表
   @Override
   protected void finishTransition(final MasterProcedureEnv env, final RegionStateNode regionNode)
       throws IOException {
@@ -290,6 +294,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     env.getAssignmentManager().getRegionStates().removeFromFailedOpen(regionNode.getRegionInfo());
   }
 
+  // 处理RS报告的open结果
   @Override
   protected void reportTransition(final MasterProcedureEnv env, final RegionStateNode regionNode,
       final TransitionCode code, final long openSeqNum) throws UnexpectedStateException {
@@ -339,7 +344,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     // We were moved to OPENING state before dispatch. Undo. It is safe to call
     // this method because it checks for OPENING first.
     env.getAssignmentManager().undoRegionAsOpening(regionNode);
-    setTransitionState(RegionTransitionState.REGION_TRANSITION_QUEUE);
+    setTransitionState(RegionTransitionState.REGION_TRANSITION_QUEUE); // 重新制定分配计划
   }
 
   private boolean incrementAndCheckMaxAttempts(final MasterProcedureEnv env,
@@ -393,6 +398,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
   public static class CompareAssignProcedure implements Comparator<AssignProcedure> {
     @Override
     public int compare(AssignProcedure left, AssignProcedure right) {
+      // meta表优先
       if (left.getRegionInfo().isMetaRegion()) {
         if (right.getRegionInfo().isMetaRegion()) {
           return RegionInfo.COMPARATOR.compare(left.getRegionInfo(), right.getRegionInfo());
@@ -401,6 +407,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
       } else if (right.getRegionInfo().isMetaRegion()) {
         return +1;
       }
+      // system表优先
       if (left.getRegionInfo().getTable().isSystemTable()) {
         if (right.getRegionInfo().getTable().isSystemTable()) {
           return RegionInfo.COMPARATOR.compare(left.getRegionInfo(), right.getRegionInfo());

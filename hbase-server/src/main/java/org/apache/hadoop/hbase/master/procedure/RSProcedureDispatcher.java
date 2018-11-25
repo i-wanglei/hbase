@@ -245,7 +245,7 @@ public class RSProcedureDispatcher
   public void splitAndResolveOperation(final ServerName serverName,
       final Set<RemoteProcedure> remoteProcedures, final RemoteProcedureResolver resolver) {
     final ArrayListMultimap<Class<?>, RemoteOperation> reqsByType =
-      buildAndGroupRequestByType(procedureEnv, serverName, remoteProcedures);
+      buildAndGroupRequestByType(procedureEnv, serverName, remoteProcedures); // 根据操作类型分组
 
     final List<RegionOpenOperation> openOps = fetchType(reqsByType, RegionOpenOperation.class);
     if (!openOps.isEmpty()) {
@@ -297,17 +297,19 @@ public class RSProcedureDispatcher
       if (LOG.isTraceEnabled()) {
         LOG.trace("Building request with operations count=" + remoteProcedures.size());
       }
+      // step 1: 构造open和close消息
       splitAndResolveOperation(getServerName(), remoteProcedures, this);
 
       try {
+        // step 2: 发送请求，这里的response只是说明RS开始open和close工作了
         final ExecuteProceduresResponse response = sendRequest(getServerName(), request.build());
         remoteCallCompleted(procedureEnv, response);
       } catch (IOException e) {
         e = unwrapException(e);
         // TODO: In the future some operation may want to bail out early.
         // TODO: How many times should we retry (use numberOfAttemptsSoFar)
-        if (!scheduleForRetry(e)) {
-          remoteCallFailed(procedureEnv, e);
+        if (!scheduleForRetry(e)) { // 是否应该重试
+          remoteCallFailed(procedureEnv, e); // 失败，需重新分配
         }
       }
       return null;

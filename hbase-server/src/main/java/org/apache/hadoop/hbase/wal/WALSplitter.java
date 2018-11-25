@@ -648,7 +648,7 @@ public class WALSplitter {
   private static FileStatus[] getSequenceIdFiles(FileSystem fs, Path regionDir) throws IOException {
     // TODO: Why are we using a method in here as part of our normal region open where
     // there is no splitting involved? Fix. St.Ack 01/20/2017.
-    Path editsDir = WALSplitter.getRegionDirRecoveredEditsDir(regionDir);
+    Path editsDir = WALSplitter.getRegionDirRecoveredEditsDir(regionDir); // recovered.edits目录
     try {
       FileStatus[] files = fs.listStatus(editsDir, WALSplitter::isSequenceIdFile);
       return files != null ? files : new FileStatus[0];
@@ -657,7 +657,7 @@ public class WALSplitter {
     }
   }
 
-  private static long getMaxSequenceId(FileStatus[] files) {
+  private static long getMaxSequenceId(FileStatus[] files) { // 通过文件名获取maxSeqId
     long maxSeqId = -1L;
     for (FileStatus file : files) {
       String fileName = file.getPath().getName();
@@ -691,7 +691,7 @@ public class WALSplitter {
     }
     // write a new seqId file
     Path newSeqIdFile = new Path(WALSplitter.getRegionDirRecoveredEditsDir(regionDir),
-      newMaxSeqId + SEQUENCE_ID_FILE_SUFFIX);
+      newMaxSeqId + SEQUENCE_ID_FILE_SUFFIX); // 这个文件是为了表示newMaxSeqId之前的wal已经都回放了？
     if (newMaxSeqId != maxSeqId) {
       try {
         if (!fs.createNewFile(newSeqIdFile) && !fs.exists(newSeqIdFile)) {
@@ -706,7 +706,7 @@ public class WALSplitter {
     // remove old ones
     for (FileStatus status : files) {
       if (!newSeqIdFile.equals(status.getPath())) {
-        fs.delete(status.getPath(), false);
+        fs.delete(status.getPath(), false); // 删除回放过的wal文件
       }
     }
   }

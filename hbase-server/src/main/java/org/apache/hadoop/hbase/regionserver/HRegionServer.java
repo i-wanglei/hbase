@@ -2139,7 +2139,7 @@ public class HRegionServer extends HasThread implements
     LOG.info("Post open deploy tasks for " + r.getRegionInfo().getRegionNameAsString());
     // Do checks to see if we need to compact (references or too many files)
     for (HStore s : r.stores.values()) {
-      if (s.hasReferences() || s.needsCompaction()) {
+      if (s.hasReferences() || s.needsCompaction()) { // 是否需要compaction
         this.compactSplitThread.requestSystemCompaction(r, s, "Opening Region");
       }
     }
@@ -2151,6 +2151,7 @@ public class HRegionServer extends HasThread implements
       openSeqNum = 0;
     }
 
+    // 向master汇报
     // Notify master
     if (!reportRegionStateTransition(new RegionStateTransitionContext(
         TransitionCode.OPENED, openSeqNum, masterSystemTime, r.getRegionInfo()))) {
@@ -2158,6 +2159,7 @@ public class HRegionServer extends HasThread implements
         + r.getRegionInfo().getRegionNameAsString());
     }
 
+    // TODOWXY: 如果非primary replica，则触发primary replica flush？
     triggerFlushInPrimaryRegion(r);
 
     LOG.debug("Finished post open deploy task for " + r.getRegionInfo().getRegionNameAsString());
@@ -2213,15 +2215,16 @@ public class HRegionServer extends HasThread implements
     // Keep looping till we get an error. We want to send reports even though server is going down.
     // Only go down if clusterConnection is null. It is set to null almost as last thing as the
     // HRegionServer does down.
+    // 除非master返回response，否则一直重试
     while (this.clusterConnection != null && !this.clusterConnection.isClosed()) {
       RegionServerStatusService.BlockingInterface rss = rssStub;
       try {
         if (rss == null) {
-          createRegionServerStatusStub();
+          createRegionServerStatusStub(); // 创建和master的连接
           continue;
         }
         ReportRegionStateTransitionResponse response =
-          rss.reportRegionStateTransition(null, request);
+          rss.reportRegionStateTransition(null, request); //  汇报结果
         if (response.hasErrorMessage()) {
           LOG.info("TRANSITION FAILED " + request + ": " + response.getErrorMessage());
           break;
@@ -3090,7 +3093,7 @@ public class HRegionServer extends HasThread implements
     final Boolean previous = this.regionsInTransitionInRS.putIfAbsent(Bytes.toBytes(encodedName),
         Boolean.FALSE);
 
-    if (Boolean.TRUE.equals(previous)) {
+    if (Boolean.TRUE.equals(previous)) { // 如果正在open region
       LOG.info("Received CLOSE for the region:" + encodedName + " , which we are already " +
           "trying to OPEN. Cancelling OPENING.");
       if (!regionsInTransitionInRS.replace(Bytes.toBytes(encodedName), previous, Boolean.FALSE)) {

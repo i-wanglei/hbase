@@ -99,6 +99,7 @@ public class CloseRegionHandler extends EventHandler {
         return;
       }
 
+      // step 1: 关闭region
       // Close the region
       try {
         if (region.close(abort) == null) {
@@ -116,7 +117,9 @@ public class CloseRegionHandler extends EventHandler {
         throw new RuntimeException(ioe);
       }
 
+      // step 2: 维护内存状态
       this.rsServices.removeRegion(region, destination);
+      // step 3: 向master汇报结果
       rsServices.reportRegionStateTransition(new RegionStateTransitionContext(TransitionCode.CLOSED,
           HConstants.NO_SEQNUM, -1, regionInfo));
 

@@ -733,7 +733,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
      * of the region in question
      * @return true or false
      */
-    boolean wouldLowerAvailability(RegionInfo regionInfo, ServerName serverName) {
+    boolean wouldLowerAvailability(RegionInfo regionInfo, ServerName serverName) { // 是否会降低服务可用性？
       if (!serversToIndex.containsKey(serverName.getHostAndPort())) {
         return false; // safeguard against race between cluster.servers and servers from LB method args
       }
@@ -785,6 +785,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       return false;
     }
 
+    // 维护balance统计信息
     void doAssignRegion(RegionInfo regionInfo, ServerName serverName) {
       if (!serversToIndex.containsKey(serverName.getHostAndPort())) {
         return;
@@ -794,6 +795,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       doAction(new AssignRegionAction(region, server));
     }
 
+    // 维护balance统计信息
     void regionMoved(int region, int oldServer, int newServer) {
       regionIndexToServerIndex[region] = newServer;
       if (initialRegionIndexToServerIndex[region] == newServer) {
@@ -1111,6 +1113,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       return null;
     }
     Map<ServerName, List<RegionInfo>> assignments = new TreeMap<>();
+    // 如果hbase.balancer.tablesOnMaster.systemTablesOnly=true，分配systemTable到master
     if (this.onlySystemTablesOnMaster) {
       if (masterServerName != null && servers.contains(masterServerName)) {
         assignments.put(masterServerName, new ArrayList<>());
@@ -1228,7 +1231,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    */
   @Override
   public Map<ServerName, List<RegionInfo>> roundRobinAssignment(List<RegionInfo> regions,
-      List<ServerName> servers) throws HBaseIOException {
+      List<ServerName> servers) throws HBaseIOException { // 顺序分配
     metricsBalancer.incrMiscInvocations();
     Map<ServerName, List<RegionInfo>> assignments = assignMasterSystemRegions(regions, servers);
     if (assignments != null && !assignments.isEmpty()) {
@@ -1378,9 +1381,10 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    */
   @Override
   public Map<ServerName, List<RegionInfo>> retainAssignment(Map<RegionInfo, ServerName> regions,
-      List<ServerName> servers) throws HBaseIOException {
+      List<ServerName> servers) throws HBaseIOException { // 制定分配计划
     // Update metrics
     metricsBalancer.incrMiscInvocations();
+    // 如果hbase.balancer.tablesOnMaster.systemTablesOnly=true，分配systemTable到master
     Map<ServerName, List<RegionInfo>> assignments = assignMasterSystemRegions(regions.keySet(), servers);
     if (assignments != null && !assignments.isEmpty()) {
       servers = new ArrayList<>(servers);
@@ -1388,7 +1392,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       servers.remove(masterServerName);
       List<RegionInfo> masterRegions = assignments.get(masterServerName);
       regions = regions.entrySet().stream().filter(e -> !masterRegions.contains(e.getKey()))
-          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)); // 排除已分配的systemTable region
     }
     if (regions.isEmpty()) {
       return assignments;
@@ -1399,6 +1403,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       LOG.warn("Wanted to do retain assignment but no servers to assign to");
       return null;
     }
+    // 只有一个RS，把所有的region分配到这个RS
     if (numServers == 1) { // Only one server, nothing fancy we can do here
       ServerName server = servers.get(0);
       assignments.put(server, new ArrayList<>(regions.keySet()));
@@ -1411,7 +1416,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     // Group the servers by their hostname. It's possible we have multiple
     // servers on the same host on different ports.
-    ArrayListMultimap<String, ServerName> serversByHostname = ArrayListMultimap.create();
+    ArrayListMultimap<String, ServerName> serversByHostname = ArrayListMultimap.create(); // 可分配RS map
     for (ServerName server : servers) {
       assignments.put(server, new ArrayList<>());
       serversByHostname.put(server.getHostnameLowerCase(), server);
@@ -1434,7 +1439,8 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       if (oldServerName != null) {
         localServers = serversByHostname.get(oldServerName.getHostnameLowerCase());
       }
-      if (localServers.isEmpty()) {
+
+      if (localServers.isEmpty()) { // 之前的RS不可用，则随机分配一个新的RS
         // No servers on the new cluster match up with this hostname,
         // assign randomly.
         ServerName randomServer = randomAssignment(cluster, region, servers);
@@ -1443,13 +1449,13 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         if (oldServerName != null) {
           oldHostsNoLongerPresent.add(oldServerName.getHostnameLowerCase());
         }
-      } else if (localServers.size() == 1) {
+      } else if (localServers.size() == 1) { // 之前的RS可用
         // the usual case - one new server on same host
         ServerName target = localServers.get(0);
         assignments.get(target).add(region);
         cluster.doAssignRegion(region, target);
         numRetainedAssigments++;
-      } else {
+      } else { // 之前的RS服务器上，启了多个region server
         // multiple new servers in the cluster on this same host
         if (localServers.contains(oldServerName)) {
           assignments.get(oldServerName).add(region);
@@ -1519,6 +1525,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int iterations = 0;
 
     do {
+      // 随机找一个RS
       int i = RANDOM.nextInt(numServers);
       sn = servers.get(i);
     } while (cluster.wouldLowerAvailability(regionInfo, sn)

@@ -33,7 +33,7 @@ public class ProcedureEvent<T> {
 
   private final T object;
   private boolean ready = false;
-  private ProcedureDeque suspendedProcedures = new ProcedureDeque();
+  private ProcedureDeque suspendedProcedures = new ProcedureDeque(); // 挂起队列
 
   public ProcedureEvent(final T object) {
     this.object = object;

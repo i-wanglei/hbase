@@ -1266,7 +1266,7 @@ public class AssignmentManager implements ServerListener {
    * @param hri region to check if it is already rebuild
    * @throws PleaseHoldException if meta has not been loaded yet
    */
-  private void checkMetaLoaded(RegionInfo hri) throws PleaseHoldException {
+  private void checkMetaLoaded(RegionInfo hri) throws PleaseHoldException { // 检查meta表，是否分配完成
     if (!isRunning()) {
       throw new PleaseHoldException("AssignmentManager not running");
     }
@@ -1436,7 +1436,7 @@ public class AssignmentManager implements ServerListener {
         setMetaAssigned(hri, false);
       }
       regionStates.addRegionToServer(regionNode);
-      regionStateStore.updateRegionLocation(regionNode);
+      regionStateStore.updateRegionLocation(regionNode); // 更新meta表
     }
 
     // update the operation count metrics
@@ -1455,7 +1455,7 @@ public class AssignmentManager implements ServerListener {
       regionStates.removeRegionFromServer(regionNode.getRegionLocation(), regionNode);
       regionNode.setLastHost(regionNode.getRegionLocation());
       regionNode.setRegionLocation(null);
-      regionStateStore.updateRegionLocation(regionNode);
+      regionStateStore.updateRegionLocation(regionNode); // 更新meta表
       sendRegionClosedNotification(hri);
     }
   }
@@ -1516,7 +1516,7 @@ public class AssignmentManager implements ServerListener {
   // ============================================================================================
   //  Assign Queue (Assign/Balance)
   // ============================================================================================
-  private final ArrayList<RegionStateNode> pendingAssignQueue = new ArrayList<RegionStateNode>();
+  private final ArrayList<RegionStateNode> pendingAssignQueue = new ArrayList<RegionStateNode>(); // 待分配region列表
   private final ReentrantLock assignQueueLock = new ReentrantLock();
   private final Condition assignQueueFullCond = assignQueueLock.newCondition();
 
@@ -1550,7 +1550,7 @@ public class AssignmentManager implements ServerListener {
     assignThread = new Thread(name) {
       @Override
       public void run() {
-        while (isRunning()) {
+        while (isRunning()) { // 一直循环
           processAssignQueue();
         }
         pendingAssignQueue.clear();
@@ -1589,14 +1589,14 @@ public class AssignmentManager implements ServerListener {
     assignQueueLock.lock();
     try {
       if (pendingAssignQueue.isEmpty() && isRunning()) {
-        assignQueueFullCond.await();
+        assignQueueFullCond.await(); // pendingAssignQueue为空，则等待被唤醒
       }
 
       if (!isRunning()) return null;
       assignQueueFullCond.await(assignDispatchWaitMillis, TimeUnit.MILLISECONDS);
       regions = new HashMap<RegionInfo, RegionStateNode>(pendingAssignQueue.size());
       for (RegionStateNode regionNode: pendingAssignQueue) {
-        regions.put(regionNode.getRegionInfo(), regionNode);
+        regions.put(regionNode.getRegionInfo(), regionNode); // 添加到HashMap
       }
       pendingAssignQueue.clear();
     } catch (InterruptedException e) {
@@ -1609,6 +1609,7 @@ public class AssignmentManager implements ServerListener {
   }
 
   private void processAssignQueue() {
+    // step 1: 获取待分配region列表
     final HashMap<RegionInfo, RegionStateNode> regions = waitOnAssignQueue();
     if (regions == null || regions.size() == 0 || !isRunning()) {
       return;
@@ -1636,6 +1637,7 @@ public class AssignmentManager implements ServerListener {
     // TODO: connect with the listener to invalidate the cache
 
     // TODO use events
+    // step 2: 获取可用RS列表
     List<ServerName> servers = master.getServerManager().createDestinationServersList();
     for (int i = 0; servers.size() < 1; ++i) {
       // Report every fourth time around this loop; try not to flood log.
@@ -1648,13 +1650,15 @@ public class AssignmentManager implements ServerListener {
         return;
       }
       Threads.sleep(250);
+      // 如果servers列表为空，则一直尝试获取
       servers = master.getServerManager().createDestinationServersList();
     }
 
-    if (!systemHRIs.isEmpty()) {
+    // step 3: 制定分配计划
+    if (!systemHRIs.isEmpty()) { // 优先分配system region
       // System table regions requiring reassignment are present, get region servers
       // not available for system table regions
-      final List<ServerName> excludeServers = getExcludedServersForSystemTable();
+      final List<ServerName> excludeServers = getExcludedServersForSystemTable(); // 获取低版本RS列表
       List<ServerName> serversForSysTables = servers.stream()
           .filter(s -> !excludeServers.contains(s)).collect(Collectors.toList());
       if (serversForSysTables.isEmpty()) {
@@ -1663,6 +1667,7 @@ public class AssignmentManager implements ServerListener {
       }
       LOG.debug("Processing assignQueue; systemServersCount=" + serversForSysTables.size() +
           ", allServersCount=" + servers.size());
+      // 尽量使用高版本RS，来打开system region
       processAssignmentPlans(regions, null, systemHRIs,
           serversForSysTables.isEmpty()? servers: serversForSysTables);
     }
@@ -1685,10 +1690,11 @@ public class AssignmentManager implements ServerListener {
         LOG.trace("retain assign regions=" + retainMap);
       }
       try {
+        // 制定分配计划，并把挂起的procedure重新放入procedureScheduler
         acceptPlan(regions, balancer.retainAssignment(retainMap, servers));
       } catch (HBaseIOException e) {
         LOG.warn("unable to retain assignment", e);
-        addToPendingAssignment(regions, retainMap.keySet());
+        addToPendingAssignment(regions, retainMap.keySet()); // 出现异常，放回待分配列表
       }
     }
 
@@ -1724,11 +1730,11 @@ public class AssignmentManager implements ServerListener {
       final ServerName server = entry.getKey();
       for (RegionInfo hri: entry.getValue()) {
         final RegionStateNode regionNode = regions.get(hri);
-        regionNode.setRegionLocation(server);
+        regionNode.setRegionLocation(server); // 把分配计划结果，添加到RegionStateNode
         events[evcount++] = regionNode.getProcedureEvent();
       }
     }
-    ProcedureEvent.wakeEvents(getProcedureScheduler(), events);
+    ProcedureEvent.wakeEvents(getProcedureScheduler(), events); // 把挂起的procedure重新放入procedureScheduler
 
     final long et = System.currentTimeMillis();
     if (LOG.isTraceEnabled()) {
@@ -1753,7 +1759,7 @@ public class AssignmentManager implements ServerListener {
    * Get a list of servers that this region cannot be assigned to.
    * For system tables, we must assign them to a server with highest version.
    */
-  public List<ServerName> getExcludedServersForSystemTable() {
+  public List<ServerName> getExcludedServersForSystemTable() { // 低版本的RS列表
     // TODO: This should be a cached list kept by the ServerManager rather than calculated on each
     // move or system region assign. The RegionServerTracker keeps list of online Servers with
     // RegionServerInfo that includes Version.

@@ -176,7 +176,7 @@ public abstract class RemoteProcedureDispatcher<TEnv, TRemote extends Comparable
       // is expired in ServerManager. ServerCrashProcedure may or may not have run.
       throw new NoServerDispatchException(key.toString() + "; " + rp.toString());
     }
-    node.add(rp); // 操作队列
+    node.add(rp); // 添加到RS操作队列，最多延迟15ms发送给RS
     // Check our node still in the map; could have been removed by #removeNode.
     if (!nodeMap.containsValue(node)) {
       throw new NoNodeDispatchException(key.toString() + "; " + rp.toString());
@@ -341,7 +341,7 @@ public abstract class RemoteProcedureDispatcher<TEnv, TRemote extends Comparable
     public synchronized void add(final RemoteProcedure operation) {
       if (this.operations == null) {
         this.operations = new HashSet<>();
-        setTimeout(EnvironmentEdgeManager.currentTime() + operationDelay);
+        setTimeout(EnvironmentEdgeManager.currentTime() + operationDelay); // 默认最多延迟15ms，批量dispatch
         timeoutExecutor.add(this);
       }
       this.operations.add(operation);

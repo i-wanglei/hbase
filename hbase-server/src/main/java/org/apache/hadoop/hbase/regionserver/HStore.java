@@ -897,7 +897,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
           storeEngine.getStoreFileManager().clearCompactedFiles();
       // clear the compacted files
       if (CollectionUtils.isNotEmpty(compactedfiles)) {
-        removeCompactedfiles(compactedfiles, true);
+        removeCompactedfiles(compactedfiles, true); // TODOWXY
       }
       if (!result.isEmpty()) {
         // initialize the thread pool for closing store files in parallel.
@@ -914,7 +914,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
             public Void call() throws IOException {
               boolean evictOnClose =
                   cacheConf != null? cacheConf.shouldEvictOnClose(): true;
-              f.closeStoreFile(evictOnClose);
+              f.closeStoreFile(evictOnClose); // 关闭storeFile reader
               return null;
             }
           });

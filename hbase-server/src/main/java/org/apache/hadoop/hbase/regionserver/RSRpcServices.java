@@ -1907,7 +1907,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     if (request.hasServerStartCode()) {
       // check that we are the same server that this RPC is intended for.
       long serverStartCode = request.getServerStartCode();
-      if (regionServer.serverName.getStartcode() !=  serverStartCode) {
+      if (regionServer.serverName.getStartcode() !=  serverStartCode) { // 请求已过期
         throw new ServiceException(new DoNotRetryIOException("This RPC was intended for a " +
             "different server with startCode: " + serverStartCode + ", this server is: "
             + regionServer.serverName));
@@ -1929,7 +1929,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         }
       }
       if (!TableName.META_TABLE_NAME.equals(tableName)) {
-        throw new ServiceException(ie);
+        throw new ServiceException(ie); // 非meta表，直接抛异常
       }
       // We are assigning meta, wait a little for regionserver to finish initialization.
       int timeout = regionServer.conf.getInt(HConstants.HBASE_RPC_TIMEOUT_KEY,
@@ -1941,7 +1941,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
               && !regionServer.isStopped() && !regionServer.isOnline()) {
             regionServer.online.wait(regionServer.msgInterval);
           }
-          checkOpen();
+          checkOpen(); // 如果是meta表，等待一会儿再检查一次
         } catch (InterruptedException t) {
           Thread.currentThread().interrupt();
           throw new ServiceException(t);
@@ -1960,7 +1960,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         String encodedName = region.getEncodedName();
         byte[] encodedNameBytes = region.getEncodedNameAsBytes();
         final HRegion onlineRegion = regionServer.getRegion(encodedName);
-        if (onlineRegion != null) {
+        if (onlineRegion != null) { // region已经open
           // The region is already online. This should not happen any more.
           String error = "Received OPEN for the region:"
             + region.getRegionNameAsString() + ", which is already online";
@@ -1972,6 +1972,8 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         }
         LOG.info("Open " + region.getRegionNameAsString());
 
+        //true - if open region action in progress
+        //false - if close region action in progress
         final Boolean previous = regionServer.regionsInTransitionInRS.putIfAbsent(
           encodedNameBytes, Boolean.TRUE);
 
@@ -1997,7 +1999,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
         // want to keep returning the stale moved record while we are opening/if we close again.
         regionServer.removeFromMovedRegions(region.getEncodedName());
 
-        if (previous == null || !previous.booleanValue()) {
+        if (previous == null || !previous.booleanValue()) { // 此region还没有open
           htd = htds.get(region.getTable());
           if (htd == null) {
             htd = regionServer.tableDescriptors.get(region.getTable());
@@ -2011,11 +2013,13 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
           if (regionServer.executorService == null) {
             LOG.info("No executor executorService; skipping open request");
           } else {
+            // 提交open任务
             if (region.isMetaRegion()) {
               regionServer.executorService.submit(new OpenMetaHandler(
               regionServer, regionServer, region, htd, masterSystemTime));
             } else {
               if (regionOpenInfo.getFavoredNodesCount() > 0) {
+                // 当创建HDFS文件时，可以设置FavoredNodes
                 regionServer.updateRegionFavoredNodesMapping(region.getEncodedName(),
                 regionOpenInfo.getFavoredNodesList());
               }
@@ -3539,7 +3543,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
 
   @Override
   public ExecuteProceduresResponse executeProcedures(RpcController controller,
-       ExecuteProceduresRequest request) throws ServiceException {
+       ExecuteProceduresRequest request) throws ServiceException { // 执行open和close procedure
     ExecuteProceduresResponse.Builder builder = ExecuteProceduresResponse.newBuilder();
     if (request.getOpenRegionCount() > 0) {
       for (OpenRegionRequest req : request.getOpenRegionList()) {

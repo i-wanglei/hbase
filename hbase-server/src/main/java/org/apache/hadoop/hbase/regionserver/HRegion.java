@@ -283,6 +283,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private final ConcurrentHashMap<HashedBytes, RowLockContext> lockedRows =
       new ConcurrentHashMap<>();
 
+  // <CFName, HStore>
   protected final Map<byte[], HStore> stores =
       new ConcurrentSkipListMap<>(Bytes.BYTES_RAWCOMPARATOR);
 
@@ -377,6 +378,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   // the maxSeqId up to which the store was flushed. And, skip the edits which
   // are equal to or lower than maxSeqId for each store.
   // The following map is populated when opening the region
+  // <CFName, maxSeqId>
   Map<byte[], Long> maxSeqIdInStores = new TreeMap<>(Bytes.BYTES_COMPARATOR);
 
   /** Saved state from replaying prepare flush cache */
@@ -909,25 +911,30 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       coprocessorHost.preOpen();
     }
 
+    // step 1: 检查.regioninfo文件
     // Write HRI to a file in case we need to recover hbase:meta
     // Only the primary replica should write .regioninfo
     if (this.getRegionInfo().getReplicaId() == RegionInfo.DEFAULT_REPLICA_ID) {
       status.setStatus("Writing region info on filesystem");
-      fs.checkRegionInfoOnFilesystem();
+      fs.checkRegionInfoOnFilesystem(); // 检查.regioninfo文件
     }
 
+    // step 2: 初始化Store
     // Initialize all the HStores
     status.setStatus("Initializing all the Stores");
-    long maxSeqId = initializeStores(reporter, status);
-    this.mvcc.advanceTo(maxSeqId);
-    if (ServerRegionReplicaUtil.shouldReplayRecoveredEdits(this)) {
+    long maxSeqId = initializeStores(reporter, status); // 初始化Store
+    this.mvcc.advanceTo(maxSeqId); // 设置MVCC
+    // step 3: 回放wal
+    if (ServerRegionReplicaUtil.shouldReplayRecoveredEdits(this)) { // 是否是主replica
       Collection<HStore> stores = this.stores.values();
       try {
         // update the stores that we are replaying
         stores.forEach(HStore::startReplayingFromWAL);
         // Recover any edits if available.
         maxSeqId = Math.max(maxSeqId,
+          // 回放wal
           replayRecoveredEditsIfAny(this.fs.getRegionDir(), maxSeqIdInStores, reporter, status));
+        // step 4: 设置MVCC
         // Make sure mvcc is up to max.
         this.mvcc.advanceTo(maxSeqId);
       } finally {
@@ -941,10 +948,11 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     this.writestate.flushRequested = false;
     this.writestate.compacting.set(0);
 
+    // step 5: 清理临时目录：.tmp、.splits、.merges、.recovered.edits
     if (this.writestate.writesEnabled) {
       // Remove temporary data left over from old regions
       status.setStatus("Cleaning up temporary data from old regions");
-      fs.cleanupTempDir();
+      fs.cleanupTempDir(); // 删除region的.tmp目录
     }
 
     if (this.writestate.writesEnabled) {
@@ -952,8 +960,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       // Get rid of any splits or merges that were lost in-progress.  Clean out
       // these directories here on open.  We may be opening a region that was
       // being split but we crashed in the middle of it all.
-      fs.cleanupAnySplitDetritus();
-      fs.cleanupMergesDir();
+      fs.cleanupAnySplitDetritus(); // 删除region的.splits目录
+      fs.cleanupMergesDir(); // 删除region的.merges目录
     }
 
     // Initialize split policy
@@ -970,7 +978,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // Use maximum of log sequenceid or that which was found in stores
     // (particularly if no recovered edits, seqid will be -1).
     long maxSeqIdFromFile =
-      WALSplitter.getMaxRegionSequenceId(fs.getFileSystem(), fs.getRegionDir());
+      WALSplitter.getMaxRegionSequenceId(fs.getFileSystem(), fs.getRegionDir()); // recovered.edits目录下，最大的seqId
     long nextSeqId = Math.max(maxSeqId, maxSeqIdFromFile) + 1;
     // The openSeqNum will always be increase even for read only region, as we rely on it to
     // determine whether a region has been successfully reopend, so here we always need to update
@@ -1005,9 +1013,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   private long initializeStores(CancelableProgressable reporter, MonitoredTask status)
       throws IOException {
     // Load in all the HStores.
-    long maxSeqId = -1;
+    long maxSeqId = -1; // region级maxSeqId
     // initialized to -1 so that we pick up MemstoreTS from column families
-    long maxMemstoreTS = -1;
+    long maxMemstoreTS = -1; // region级maxMemstoreTS
 
     if (htableDescriptor.getColumnFamilyCount() != 0) {
       // initialize the thread pool for opening stores in parallel.
@@ -1021,7 +1029,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         completionService.submit(new Callable<HStore>() {
           @Override
           public HStore call() throws IOException {
-            return instantiateHStore(family);
+            return instantiateHStore(family); // 初始化HStore
           }
         });
       }
@@ -1513,6 +1521,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     }
     status.setStatus("Disabling compacts and flushes for region");
     boolean canFlush = true;
+    // step 1: 等待compaction、flush完成
     synchronized (writestate) {
       // Disable compacting and flushing by background threads for this
       // region.
@@ -1520,8 +1529,9 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       writestate.writesEnabled = false;
       LOG.debug("Closing {}, disabling compactions & flushes",
           this.getRegionInfo().getEncodedName());
-      waitForFlushesAndCompactions();
+      waitForFlushesAndCompactions(); // 等待compaction、flush完成
     }
+    // step 2: flush region
     // If we were not just flushing, is it worth doing a preflush...one
     // that will clear out of the bulk of the memstore before we put up
     // the close flag?
@@ -1529,15 +1539,16 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       status.setStatus("Pre-flushing region before close");
       LOG.info("Running close preflush of {}", this.getRegionInfo().getEncodedName());
       try {
-        internalFlushcache(status);
+        internalFlushcache(status); // 做一次flush
       } catch (IOException ioe) {
         // Failed to flush the region. Keep going.
         status.setStatus("Failed pre-flush " + this + "; " + ioe.getMessage());
       }
     }
 
+    // step 3: 获取写锁，阻塞写操作
     if (timeoutForWriteLock == null
-        || timeoutForWriteLock == Long.MAX_VALUE) {
+        || timeoutForWriteLock == Long.MAX_VALUE) { // 获取写锁，是否需要设置超时时间
       // block waiting for the lock for closing
       lock.writeLock().lock(); // FindBugs: Complains UL_UNRELEASED_LOCK_EXCEPTION_PATH but seems fine
     } else {
@@ -1596,6 +1607,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
       }
 
+      // step 4: 关闭所有store
       Map<byte[], List<HStoreFile>> result = new TreeMap<>(Bytes.BYTES_COMPARATOR);
       if (!stores.isEmpty()) {
         // initialize the thread pool for closing stores in parallel.
@@ -1622,7 +1634,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
               .submit(new Callable<Pair<byte[], Collection<HStoreFile>>>() {
                 @Override
                 public Pair<byte[], Collection<HStoreFile>> call() throws IOException {
-                  return new Pair<>(store.getColumnFamilyDescriptor().getName(), store.close());
+                  return new Pair<>(store.getColumnFamilyDescriptor().getName(), store.close()); // 关闭所有的store
                 }
               });
         }
@@ -1650,6 +1662,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         }
       }
 
+      // step 5: 写close标记到wal
       status.setStatus("Writing region close event to WAL");
       // Always write close marker to wal even for read only table. This is not a big problem as we
       // do not write any data into the region.
@@ -1660,6 +1673,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
       this.closed.set(true);
       if (!canFlush) {
+        // step 6: 维护内存占用统计值
         decrMemStoreSize(this.memStoreSizing.getMemStoreSize());
       } else if (this.memStoreSizing.getDataSize() != 0) {
         LOG.error("Memstore data size is {}", this.memStoreSizing.getDataSize());
@@ -1685,7 +1699,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   /** Wait for all current flushes and compactions of the region to complete */
   // TODO HBASE-18906. Check the usage (if any) in Phoenix and expose this or give alternate way for
   // Phoenix needs.
-  public void waitForFlushesAndCompactions() {
+  public void waitForFlushesAndCompactions() { // 等待compaction、flush完成
     synchronized (writestate) {
       if (this.writestate.readOnly) {
         // we should not wait for replayed flushed if we are read only (for example in case the
@@ -7036,7 +7050,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     if (LOG.isDebugEnabled()) {
       LOG.debug("Opening region: " + info);
     }
-    HRegion r = HRegion.newHRegion(tableDir, wal, fs, conf, info, htd, rsServices);
+    HRegion r = HRegion.newHRegion(tableDir, wal, fs, conf, info, htd, rsServices); // 创建对象
     return r.openHRegion(reporter);
   }
 
@@ -7072,20 +7086,20 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   protected HRegion openHRegion(final CancelableProgressable reporter)
   throws IOException {
     // Refuse to open the region if we are missing local compression support
-    checkCompressionCodecs();
+    checkCompressionCodecs(); // 检查设置的压缩类型是否支持
     // Refuse to open the region if encryption configuration is incorrect or
     // codec support is missing
-    checkEncryption();
+    checkEncryption(); // 检查加密类型是否支持
     // Refuse to open the region if a required class cannot be loaded
-    checkClassLoading();
+    checkClassLoading(); // 检查配置的类是否实例化
     this.openSeqNum = initialize(reporter);
-    this.mvcc.advanceTo(openSeqNum);
+    this.mvcc.advanceTo(openSeqNum); // 设置MVCC
     // The openSeqNum must be increased every time when a region is assigned, as we rely on it to
     // determine whether a region has been successfully reopened. So here we always write open
     // marker, even if the table is read only.
     if (wal != null && getRegionServerServices() != null &&
       RegionReplicaUtil.isDefaultReplica(getRegionInfo())) {
-      writeRegionOpenMarker(wal, openSeqNum);
+      writeRegionOpenMarker(wal, openSeqNum); // 在wal文件中写一个标记
     }
     return this;
   }
