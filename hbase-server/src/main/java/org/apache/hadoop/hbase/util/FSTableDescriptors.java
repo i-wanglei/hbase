@@ -251,6 +251,8 @@ public class FSTableDescriptors implements TableDescriptors {
   /**
    * Returns a map from table name to table descriptor for all tables.
    */
+  // 从hdfs上加载table信息：从/home/hbase/data/default/test/.tabledesc下找到	最新的（序号最大的最新），然后删除其他的文件。
+  // 信息缓存到FSTableDescriptors的cache中。
   @Override
   public Map<String, TableDescriptor> getAll()
   throws IOException {

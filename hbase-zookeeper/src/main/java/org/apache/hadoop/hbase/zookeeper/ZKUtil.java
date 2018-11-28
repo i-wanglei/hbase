@@ -438,7 +438,7 @@ public final class ZKUtil {
    */
   public static List<String> listChildrenAndWatchForNewChildren(
           ZKWatcher zkw, String znode)
-  throws KeeperException {
+  throws KeeperException { // 获取指定znode下的所有子节点，并watch
     try {
       List<String> children = zkw.getRecoverableZooKeeper().getChildren(znode, zkw);
       return children;

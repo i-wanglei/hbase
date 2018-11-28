@@ -277,12 +277,13 @@ public class ServerManager {
     ServerName existingServer = null;
     synchronized (this.onlineServers) {
       existingServer = findServerWithSameHostnamePortWithLock(serverName);
+      // 新添加的server是否比存在的server，startcode更大
       if (existingServer != null && (existingServer.getStartcode() > serverName.getStartcode())) {
         LOG.info("Server serverName=" + serverName + " rejected; we already have "
             + existingServer.toString() + " registered with same hostname and port");
         return false;
       }
-      recordNewServerWithLock(serverName, sl);
+      recordNewServerWithLock(serverName, sl); // 添加到onlineServers列表
     }
 
     // Tell our listeners that a server was added
@@ -298,7 +299,7 @@ public class ServerManager {
         (existingServer.getStartcode() < serverName.getStartcode())) {
       LOG.info("Triggering server recovery; existingServer " +
           existingServer + " looks stale, new server:" + serverName);
-      expireServer(existingServer);
+      expireServer(existingServer); // 存在的server startcode更小，则kill该RS
     }
     return true;
   }
@@ -318,7 +319,9 @@ public class ServerManager {
    */
   void findOutDeadServersAndProcess(Set<ServerName> deadServersFromPE,
       Set<ServerName> liveServersFromWALDir) {
+    // procedure store中SCP中记录的deadserver
     deadServersFromPE.forEach(deadservers::add);
+    // wal目录中所有的server，如果不包括在onlineserver，则kill它们
     liveServersFromWALDir.stream().filter(sn -> !onlineServers.containsKey(sn))
       .forEach(this::expireServer);
   }
@@ -547,7 +550,7 @@ public class ServerManager {
       LOG.warn("Expiration called on {} but crash processing already in progress", serverName);
       return false;
     }
-    moveFromOnlineToDeadServers(serverName);
+    moveFromOnlineToDeadServers(serverName); // 添加到deadServers列表
 
     // If cluster is going down, yes, servers are going to be expiring; don't
     // process as a dead server
@@ -560,6 +563,7 @@ public class ServerManager {
       return false;
     }
     LOG.info("Processing expiration of " + serverName + " on " + this.master.getServerName());
+    // 提交ServerCrashProcedure
     master.getAssignmentManager().submitServerCrash(serverName, true);
 
     // Tell our listeners that a server was removed
@@ -743,6 +747,11 @@ public class ServerManager {
    *
    * @throws InterruptedException
    */
+  // 查看serverManager的onlineServers里RS的个数，直到如下条件返回：
+  // 1、rs数大于启动上限:（hbase.master.wait.on.regionservers.maxtostart，MAX_VALUE）
+  // 2、rs大于hbase.master.wait.on.regionservers.mintostart（1）且:
+  //        启动时间超过：hbase.master.wait.on.regionservers.timeout (1.5s)
+  //        无rs加入时间超过：hbase.master.wait.on.regionservers.interval(4.5s)
   public void waitForRegionServers(MonitoredTask status) throws InterruptedException {
     final long interval = this.master.getConfiguration().
         getLong(WAIT_ON_REGIONSERVERS_INTERVAL, 1500);
@@ -791,7 +800,7 @@ public class ServerManager {
 
       // We sleep for some time
       final long sleepTime = 50;
-      Thread.sleep(sleepTime);
+      Thread.sleep(sleepTime); // 等待满足条件
       now =  System.currentTimeMillis();
       slept = now - startTime;
 

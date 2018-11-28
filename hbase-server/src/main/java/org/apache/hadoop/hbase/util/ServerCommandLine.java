@@ -146,6 +146,7 @@ public abstract class ServerCommandLine extends Configured implements Tool {
    */
   public void doMain(String args[]) {
     try {
+      // 解析命令行参数，并运行
       int ret = ToolRunner.run(HBaseConfiguration.create(), this, args);
       if (ret != 0) {
         System.exit(ret);

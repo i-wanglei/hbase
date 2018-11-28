@@ -100,7 +100,7 @@ public class RegionStates {
   // thread at a time working on a single Region's RegionStateNode? Lets presume
   // so for now. Odd is that elsewhere in this RegionStates, we synchronize on
   // the RegionStateNode instance. TODO.
-  public static class RegionStateNode implements Comparable<RegionStateNode> {
+  public static class RegionStateNode implements Comparable<RegionStateNode> { // master内存中记录的region状态
     private final RegionInfo regionInfo;
     private final ProcedureEvent<?> event;
 
@@ -351,7 +351,7 @@ public class RegionStates {
   /**
    * State of Server; list of hosted regions, etc.
    */
-  public static class ServerStateNode implements Comparable<ServerStateNode> {
+  public static class ServerStateNode implements Comparable<ServerStateNode> { // RS上的region列表
     private final ServerReportEvent reportEvent;
 
     private final Set<RegionStateNode> regions;

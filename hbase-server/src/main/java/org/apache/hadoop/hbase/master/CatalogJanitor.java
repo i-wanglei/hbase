@@ -59,7 +59,7 @@ import org.slf4j.LoggerFactory;
  * table on a period looking for unused regions to garbage collect.
  */
 @InterfaceAudience.Private
-public class CatalogJanitor extends ScheduledChore {
+public class CatalogJanitor extends ScheduledChore { // merge和split的region如果没有reference文件，则可以执行清理操作
   private static final Logger LOG = LoggerFactory.getLogger(CatalogJanitor.class.getName());
 
   private final AtomicBoolean alreadyRunning = new AtomicBoolean(false);
@@ -171,9 +171,9 @@ public class CatalogJanitor extends ScheduledChore {
           return false;
         }
         if (LOG.isTraceEnabled()) LOG.trace("" + info + " IS-SPLIT_PARENT=" + info.isSplitParent());
-        if (info.isSplitParent()) splitParents.put(info, r);
+        if (info.isSplitParent()) splitParents.put(info, r); // 正在split的region
         if (r.getValue(HConstants.CATALOG_FAMILY, HConstants.MERGEA_QUALIFIER) != null) {
-          mergedRegions.put(info, r);
+          mergedRegions.put(info, r); // 正在merge的region
         }
         // Returning true means "keep scanning"
         return true;
@@ -208,7 +208,7 @@ public class CatalogJanitor extends ScheduledChore {
     } catch (IOException e) {
       LOG.warn("Merged region does not exist: " + mergedRegion.getEncodedName());
     }
-    if (regionFs == null || !regionFs.hasReferences(htd)) {
+    if (regionFs == null || !regionFs.hasReferences(htd)) { // 新合并出的region没有reference文件
       LOG.debug("Deleting region " + regionA.getShortNameToLog() + " and "
           + regionB.getShortNameToLog()
           + " from fs because merged region no longer holds references");
@@ -240,7 +240,7 @@ public class CatalogJanitor extends ScheduledChore {
         return result;
       }
       Triple<Integer, Map<RegionInfo, Result>, Map<RegionInfo, Result>> scanTriple =
-        getMergedRegionsAndSplitParents();
+        getMergedRegionsAndSplitParents(); // 扫meta表，获取正在split和merge的region
       /**
        * clean merge regions first
        */
@@ -345,7 +345,7 @@ public class CatalogJanitor extends ScheduledChore {
     PairOfSameType<RegionInfo> daughters = MetaTableAccessor.getDaughterRegions(rowContent);
     Pair<Boolean, Boolean> a = checkDaughterInFs(parent, daughters.getFirst());
     Pair<Boolean, Boolean> b = checkDaughterInFs(parent, daughters.getSecond());
-    if (hasNoReferences(a) && hasNoReferences(b)) {
+    if (hasNoReferences(a) && hasNoReferences(b)) { // daughter不存在reference文件
       String daughterA = daughters.getFirst() != null?
           daughters.getFirst().getShortNameToLog(): "null";
       String daughterB = daughters.getSecond() != null?

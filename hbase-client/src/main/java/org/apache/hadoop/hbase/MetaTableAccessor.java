@@ -222,7 +222,7 @@ public class MetaTableAccessor {
    */
   public static void fullScanTables(Connection connection,
       final Visitor visitor)
-      throws IOException {
+      throws IOException { // 扫描meta表
     scanMeta(connection, null, null, QueryType.TABLE, visitor);
   }
 
@@ -904,12 +904,12 @@ public class MetaTableAccessor {
   @InterfaceAudience.Private // for use by HMaster#getTableRegionRow which is used for testing only
   public static ServerName getServerName(final Result r, final int replicaId) {
     byte[] serverColumn = getServerColumn(replicaId);
-    Cell cell = r.getColumnLatestCell(getCatalogFamily(), serverColumn);
+    Cell cell = r.getColumnLatestCell(getCatalogFamily(), serverColumn); // info:server
     if (cell == null || cell.getValueLength() == 0) return null;
     String hostAndPort = Bytes.toString(
       cell.getValueArray(), cell.getValueOffset(), cell.getValueLength());
     byte[] startcodeColumn = getStartCodeColumn(replicaId);
-    cell = r.getColumnLatestCell(getCatalogFamily(), startcodeColumn);
+    cell = r.getColumnLatestCell(getCatalogFamily(), startcodeColumn); // info:serverstartcode
     if (cell == null || cell.getValueLength() == 0) return null;
     try {
       return ServerName.valueOf(hostAndPort,
@@ -927,7 +927,7 @@ public class MetaTableAccessor {
    * @return SeqNum, or HConstants.NO_SEQNUM if there's no value written.
    */
   private static long getSeqNumDuringOpen(final Result r, final int replicaId) {
-    Cell cell = r.getColumnLatestCell(getCatalogFamily(), getSeqNumColumn(replicaId));
+    Cell cell = r.getColumnLatestCell(getCatalogFamily(), getSeqNumColumn(replicaId)); // info:seqnumDuringOpen
     if (cell == null || cell.getValueLength() == 0) return HConstants.NO_SEQNUM;
     return Bytes.toLong(cell.getValueArray(), cell.getValueOffset(), cell.getValueLength());
   }
@@ -940,10 +940,11 @@ public class MetaTableAccessor {
   @Nullable
   public static RegionLocations getRegionLocations(final Result r) {
     if (r == null) return null;
-    RegionInfo regionInfo = getRegionInfo(r, getRegionInfoColumn());
+    RegionInfo regionInfo = getRegionInfo(r, getRegionInfoColumn()); // 解析regioninfo column
     if (regionInfo == null) return null;
 
     List<HRegionLocation> locations = new ArrayList<>(1);
+    // <cf,column>
     NavigableMap<byte[],NavigableMap<byte[],byte[]>> familyMap = r.getNoVersionMap();
 
     locations.add(getRegionLocation(r, regionInfo, 0));
@@ -1108,7 +1109,7 @@ public class MetaTableAccessor {
    */
   @Nullable
   public static TableState getTableState(Result r) throws IOException {
-    Cell cell = r.getColumnLatestCell(getTableFamily(), getTableStateColumn());
+    Cell cell = r.getColumnLatestCell(getTableFamily(), getTableStateColumn()); // table:state
     if (cell == null) {
       return null;
     }
@@ -1646,7 +1647,7 @@ public class MetaTableAccessor {
    * @param state new state
    */
   public static Put makePutFromTableState(TableState state, long ts) {
-    Put put = new Put(state.getTableName().getName(), ts);
+    Put put = new Put(state.getTableName().getName(), ts); // rowKey为表名
     put.addColumn(getTableFamily(), getTableStateColumn(), state.convert().toByteArray());
     return put;
   }

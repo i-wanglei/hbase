@@ -156,7 +156,7 @@ public class AssignmentManager implements ServerListener {
   private final MasterServices master;
 
   private final AtomicBoolean running = new AtomicBoolean(false);
-  private final RegionStates regionStates = new RegionStates();
+  private final RegionStates regionStates = new RegionStates(); // master内存中记录的region状态
   private final RegionStateStore regionStateStore;
 
   private final boolean shouldAssignRegionsWithFavoredNodes;
@@ -193,7 +193,7 @@ public class AssignmentManager implements ServerListener {
 
     int ritChoreInterval = conf.getInt(RIT_CHORE_INTERVAL_MSEC_CONF_KEY,
         DEFAULT_RIT_CHORE_INTERVAL_MSEC);
-    this.ritChore = new RegionInTransitionChore(ritChoreInterval);
+    this.ritChore = new RegionInTransitionChore(ritChoreInterval); // 检查是否有长时间RIT的region，并输出warn日志
   }
 
   public void start() throws IOException, KeeperException {
@@ -207,7 +207,7 @@ public class AssignmentManager implements ServerListener {
     master.getServerManager().registerListener(this);
 
     // Start the Assignment Thread
-    startAssignmentThread();
+    startAssignmentThread(); // 启动分配region线程
 
     // load meta region state
     ZKWatcher zkw = master.getZooKeeper();
@@ -570,7 +570,7 @@ public class AssignmentManager implements ServerListener {
    * balancer scheme). If at assign-time, the target chosen is no longer up, thats fine,
    * the AssignProcedure will ask the balancer for a new target, and so on.
    */
-  public AssignProcedure[] createRoundRobinAssignProcedures(final List<RegionInfo> hris) {
+  public AssignProcedure[] createRoundRobinAssignProcedures(final List<RegionInfo> hris) { // 轮训分配region
     if (hris.isEmpty()) {
       return null;
     }
@@ -1047,7 +1047,7 @@ public class AssignmentManager implements ServerListener {
       final RegionInTransitionStat ritStat = am.computeRegionInTransitionStat();
       if (ritStat.hasRegionsOverThreshold()) {
         for (RegionState hri: ritStat.getRegionOverThreshold()) {
-          am.handleRegionOverStuckWarningThreshold(hri.getRegion());
+          am.handleRegionOverStuckWarningThreshold(hri.getRegion()); // 打印长时间RIT warn信息
         }
       }
 
@@ -1171,7 +1171,7 @@ public class AssignmentManager implements ServerListener {
 
     // Scan hbase:meta to build list of existing regions, servers, and assignment
     // hbase:meta is online when we get to here and TableStateManager has been started.
-    loadMeta();
+    loadMeta(); // 根据meta表中记录的state，把regionNode添加到不同的容器中
 
     while (master.getServerManager().countOfRegionServers() < 1) {
       LOG.info("Waiting for RegionServers to join; current count={}",
@@ -1180,7 +1180,7 @@ public class AssignmentManager implements ServerListener {
     }
     LOG.info("Number of RegionServers={}", master.getServerManager().countOfRegionServers());
 
-    processOfflineRegions();
+    processOfflineRegions(); //enable状态表中offline的region，提交AssignProcedure
 
     // Start the RIT chore
     master.getMasterProcedureExecutor().addChore(this.ritChore);
@@ -1199,8 +1199,9 @@ public class AssignmentManager implements ServerListener {
   private void processOfflineRegions() {
     List<RegionInfo> offlineRegions = regionStates.getRegionStates().stream()
       .filter(RegionState::isOffline).filter(s -> isTableEnabled(s.getRegion().getTable()))
-      .map(RegionState::getRegion).collect(Collectors.toList());
+      .map(RegionState::getRegion).collect(Collectors.toList()); // enable状态表中offline的region
     if (!offlineRegions.isEmpty()) {
+      // 提交AssignProcedure，轮训分配region
       master.getMasterProcedureExecutor().submitProcedures(
         master.getAssignmentManager().createRoundRobinAssignProcedures(offlineRegions));
     }
@@ -1219,7 +1220,7 @@ public class AssignmentManager implements ServerListener {
           return;
         }
         State localState = state;
-        if (localState == null) {
+        if (localState == null) { // state字段为空，则认为offline
           // No region state column data in hbase:meta table! Are I doing a rolling upgrade from
           // hbase1 to hbase2? Am I restoring a SNAPSHOT or otherwise adding a region to hbase:meta?
           // In any of these cases, state is empty. For now, presume OFFLINE but there are probably
@@ -1236,6 +1237,7 @@ public class AssignmentManager implements ServerListener {
             regionNode.setRegionLocation(regionLocation);
             regionNode.setOpenSeqNum(openSeqNum);
 
+            // 根据meta表中记录的state，把regionNode添加到不同的容器中
             if (localState == State.OPEN) {
               assert regionLocation != null : "found null region location for " + regionNode;
               regionStates.addRegionToServer(regionNode);
@@ -1256,7 +1258,7 @@ public class AssignmentManager implements ServerListener {
     });
 
     // every assignment is blocked until meta is loaded.
-    wakeMetaLoadedEvent();
+    wakeMetaLoadedEvent(); // 通知meta load完成
   }
 
   /**
@@ -1286,6 +1288,7 @@ public class AssignmentManager implements ServerListener {
     return 0;
   }
 
+  // 提交ServerCrashProcedure
   public void submitServerCrash(final ServerName serverName, final boolean shouldSplitWal) {
     boolean carryingMeta = isCarryingMeta(serverName);
     ProcedureExecutor<MasterProcedureEnv> procExec = this.master.getMasterProcedureExecutor();

@@ -231,6 +231,8 @@ public class SplitLogManager {
    * @throws IOException If there was an error while splitting any log file
    * @return cumulative size of the logfiles split
    */
+  // 1、enqueueSplitTask(pathToLog, batch)将每个hlog加入TaskBatch，写入zk：/hbase/splitWAL/encode(文件名)
+  // 2、waitForSplittingCompletion(batch, status)，循环等待直到TaskBatch的done +error= batch.installed
   public long splitLogDistributed(final Set<ServerName> serverNames, final List<Path> logDirs,
       PathFilter filter) throws IOException {
     MonitoredTask status = TaskMonitor.get().createStatus("Doing distributed log split in " +

@@ -124,7 +124,7 @@ public class RegionServerTracker extends ZKListener {
     watcher.registerListener(this);
     synchronized (this) {
       List<String> servers =
-        ZKUtil.listChildrenAndWatchForNewChildren(watcher, watcher.getZNodePaths().rsZNode);
+        ZKUtil.listChildrenAndWatchForNewChildren(watcher, watcher.getZNodePaths().rsZNode); // 注册到zk上的rs列表
       for (String n : servers) {
         Pair<ServerName, RegionServerInfo> pair = getServerInfo(n);
         ServerName serverName = pair.getFirst();
@@ -134,8 +134,10 @@ public class RegionServerTracker extends ZKListener {
           ? ServerMetricsBuilder.of(serverName,
             VersionInfoUtil.getVersionNumber(info.getVersionInfo()))
           : ServerMetricsBuilder.of(serverName);
+        // 注册到zk上的rs，添加到onlineServers列表
         serverManager.checkAndRecordNewServer(serverName, serverMetrics);
       }
+      // 处理deadServers列表
       serverManager.findOutDeadServersAndProcess(deadServersFromPE, liveServersFromWALDir);
     }
   }

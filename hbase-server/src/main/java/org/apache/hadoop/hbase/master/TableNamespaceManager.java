@@ -101,7 +101,7 @@ public class TableNamespaceManager implements Stoppable {
       // Wait for the namespace table to be initialized.
       long startTime = EnvironmentEdgeManager.currentTime();
       int timeout = conf.getInt(NS_INIT_TIMEOUT, DEFAULT_NS_INIT_TIMEOUT);
-      while (!isTableAvailableAndInitialized()) {
+      while (!isTableAvailableAndInitialized()) { // 确保namespace表初始化
         if (EnvironmentEdgeManager.currentTime() - startTime + 100 > timeout) {
           // We can't do anything if ns is not online.
           throw new IOException("Timedout " + timeout + "ms waiting for namespace table to "
@@ -276,10 +276,10 @@ public class TableNamespaceManager implements Stoppable {
         zkNamespaceManager = new ZKNamespaceManager(masterServices.getZooKeeper());
         zkNamespaceManager.start();
 
-        if (get(nsTable, NamespaceDescriptor.DEFAULT_NAMESPACE.getName()) == null) {
+        if (get(nsTable, NamespaceDescriptor.DEFAULT_NAMESPACE.getName()) == null) { // 确保namespace表中有default这条记录，没有则创建
           blockingCreateNamespace(NamespaceDescriptor.DEFAULT_NAMESPACE);
         }
-        if (get(nsTable, NamespaceDescriptor.SYSTEM_NAMESPACE.getName()) == null) {
+        if (get(nsTable, NamespaceDescriptor.SYSTEM_NAMESPACE.getName()) == null) { // 确保namespace表中有system这条记录，没有则创建
           blockingCreateNamespace(NamespaceDescriptor.SYSTEM_NAMESPACE);
         }
 

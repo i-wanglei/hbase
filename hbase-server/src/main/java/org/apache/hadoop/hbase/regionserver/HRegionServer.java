@@ -527,9 +527,9 @@ public class HRegionServer extends HasThread implements
       this.eventLoopGroupConfig = setupNetty(this.conf);
       MemorySizeUtil.checkForClusterFreeHeapMemoryLimit(this.conf);
       HFile.checkHFileVersion(this.conf);
-      checkCodecs(this.conf);
+      checkCodecs(this.conf); // 检查编解码器
       this.userProvider = UserProvider.instantiate(conf);
-      FSUtils.setupShortCircuitRead(this.conf);
+      FSUtils.setupShortCircuitRead(this.conf); // 短读相关检查和操作
 
       // Disable usage of meta replicas in the regionserver
       this.conf.setBoolean(HConstants.USE_META_REPLICAS, false);
@@ -555,7 +555,7 @@ public class HRegionServer extends HasThread implements
       this.abortRequested = false;
       this.stopped = false;
 
-      rpcServices = createRpcServices();
+      rpcServices = createRpcServices(); // 创建rpc服务
       useThisHostnameInstead = getUseThisHostnameInstead(conf);
       String hostName =
           StringUtils.isBlank(useThisHostnameInstead) ? this.rpcServices.isa.getHostName()
@@ -621,7 +621,7 @@ public class HRegionServer extends HasThread implements
       // class HRS. TODO.
       this.choreService = new ChoreService(getName(), true);
       this.executorService = new ExecutorService(getName());
-      putUpWebUI();
+      putUpWebUI(); // 启动web info服务
     } catch (Throwable t) {
       // Make sure we log the exception. HRegionServer is often started via reflection and the
       // cause of failed startup is lost.

@@ -55,7 +55,7 @@ import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
  * Store Region State to hbase:meta table.
  */
 @InterfaceAudience.Private
-public class RegionStateStore {
+public class RegionStateStore { // 维护meta表相关操作
   private static final Logger LOG = LoggerFactory.getLogger(RegionStateStore.class);
 
   /** The delimiter for meta columns for replicaIds &gt; 0 */
@@ -83,7 +83,7 @@ public class RegionStateStore {
           if (LOG.isTraceEnabled()) {
             st = System.currentTimeMillis();
           }
-          visitMetaEntry(visitor, r);
+          visitMetaEntry(visitor, r); // 扫一遍meta表
           if (LOG.isTraceEnabled()) {
             long et = System.currentTimeMillis();
             LOG.trace("[T] LOAD META PERF " + StringUtils.humanTimeDiff(et - st));
@@ -98,7 +98,7 @@ public class RegionStateStore {
 
   private void visitMetaEntry(final RegionStateVisitor visitor, final Result result)
       throws IOException {
-    final RegionLocations rl = MetaTableAccessor.getRegionLocations(result);
+    final RegionLocations rl = MetaTableAccessor.getRegionLocations(result); // 用result构造RegionLocations对象
     if (rl == null) return;
 
     final HRegionLocation[] locations = rl.getRegionLocations();
@@ -123,7 +123,7 @@ public class RegionStateStore {
         "Load hbase:meta entry region={}, regionState={}, lastHost={}, " +
           "regionLocation={}, openSeqNum={}",
         regionInfo.getEncodedName(), state, lastHost, regionLocation, openSeqNum);
-      visitor.visitRegionState(result, regionInfo, state, regionLocation, lastHost, openSeqNum);
+      visitor.visitRegionState(result, regionInfo, state, regionLocation, lastHost, openSeqNum); // 执行具体的操作
     }
   }
 
@@ -148,6 +148,7 @@ public class RegionStateStore {
   private void updateMetaLocation(RegionInfo regionInfo, ServerName serverName, State state)
       throws IOException {
     try {
+      // 更新ZK上的meta地址
       MetaTableLocator.setMetaLocation(master.getZooKeeper(), serverName, regionInfo.getReplicaId(),
         state);
     } catch (KeeperException e) {
@@ -197,8 +198,9 @@ public class RegionStateStore {
     updateRegionLocation(regionInfo, state, put);
   }
 
-  private void updateRegionLocation(RegionInfo regionInfo, State state, Put put) // 更新meta表
+  private void updateRegionLocation(RegionInfo regionInfo, State state, Put put)
       throws IOException {
+    // 更新meta表
     try (Table table = master.getConnection().getTable(TableName.META_TABLE_NAME)) {
       table.put(put);
     } catch (IOException e) {
@@ -266,9 +268,9 @@ public class RegionStateStore {
    * @return A ServerName instance or {@link MetaTableAccessor#getServerName(Result,int)}
    * if necessary fields not found or empty.
    */
-  static ServerName getRegionServer(final Result r, int replicaId) {
+  static ServerName getRegionServer(final Result r, int replicaId) { // 根据result解析出ServerName
     final Cell cell = r.getColumnLatestCell(HConstants.CATALOG_FAMILY,
-        getServerNameColumn(replicaId));
+        getServerNameColumn(replicaId)); // info:sn
     if (cell == null || cell.getValueLength() == 0) {
       RegionLocations locations = MetaTableAccessor.getRegionLocations(r);
       if (locations != null) {
@@ -283,7 +285,7 @@ public class RegionStateStore {
       cell.getValueOffset(), cell.getValueLength()));
   }
 
-  private static byte[] getServerNameColumn(int replicaId) {
+  private static byte[] getServerNameColumn(int replicaId) { // info:sn
     return replicaId == 0
         ? HConstants.SERVERNAME_QUALIFIER
         : Bytes.toBytes(HConstants.SERVERNAME_QUALIFIER_STR + META_REPLICA_ID_DELIMITER
@@ -301,7 +303,7 @@ public class RegionStateStore {
    */
   @VisibleForTesting
   public static State getRegionState(final Result r, int replicaId) {
-    Cell cell = r.getColumnLatestCell(HConstants.CATALOG_FAMILY, getStateColumn(replicaId));
+    Cell cell = r.getColumnLatestCell(HConstants.CATALOG_FAMILY, getStateColumn(replicaId)); // info:state
     if (cell == null || cell.getValueLength() == 0) {
       return null;
     }
@@ -309,7 +311,7 @@ public class RegionStateStore {
         cell.getValueLength()));
   }
 
-  private static byte[] getStateColumn(int replicaId) {
+  private static byte[] getStateColumn(int replicaId) { // info:state
     return replicaId == 0
         ? HConstants.STATE_QUALIFIER
         : Bytes.toBytes(HConstants.STATE_QUALIFIER_STR + META_REPLICA_ID_DELIMITER

@@ -145,7 +145,7 @@ public class ServerCrashProcedure
             throw new ProcedureSuspendedException();
           }
           this.regionsOnCrashedServer = services.getAssignmentManager().getRegionStates()
-            .getServerRegionInfoSet(serverName);
+            .getServerRegionInfoSet(serverName); // 挂掉的这个RS上的region列表
           // Where to go next? Depends on whether we should split logs at all or
           // if we should do distributed log splitting.
           if (!this.shouldSplitWal) {
@@ -154,15 +154,15 @@ public class ServerCrashProcedure
             setNextState(ServerCrashState.SERVER_CRASH_SPLIT_LOGS);
           }
           break;
-        case SERVER_CRASH_SPLIT_LOGS:
+        case SERVER_CRASH_SPLIT_LOGS: // 先split log
           splitLogs(env);
           setNextState(ServerCrashState.SERVER_CRASH_ASSIGN);
           break;
-        case SERVER_CRASH_ASSIGN:
+        case SERVER_CRASH_ASSIGN: // 再分region
           // If no regions to assign, skip assign and skip to the finish.
           // Filter out meta regions. Those are handled elsewhere in this procedure.
           // Filter changes this.regionsOnCrashedServer.
-          if (filterDefaultMetaRegions(regionsOnCrashedServer)) {
+          if (filterDefaultMetaRegions(regionsOnCrashedServer)) { // 排除掉default meta region
             if (LOG.isTraceEnabled()) {
               LOG.trace("Assigning regions " +
                 RegionInfo.getShortNameToLog(regionsOnCrashedServer) + ", " + this +
@@ -174,10 +174,10 @@ public class ServerCrashProcedure
             // condition if a dispatch RPC fails inside in AssignProcedure/UnassignProcedure.
             // AssignProcedure just keeps retrying. UnassignProcedure is more complicated. See where
             // it does the check by calling am#isLogSplittingDone.
-            List<RegionInfo> toAssign = handleRIT(env, regionsOnCrashedServer);
+            List<RegionInfo> toAssign = handleRIT(env, regionsOnCrashedServer); // 通知RIT列表中的procedure，返回剩余的region
             AssignmentManager am = env.getAssignmentManager();
             // CreateAssignProcedure will try to use the old location for the region deploy.
-            addChildProcedure(am.createAssignProcedures(toAssign));
+            addChildProcedure(am.createAssignProcedures(toAssign)); // 创建AssignProcedure并添加到subProcedure列表
             setNextState(ServerCrashState.SERVER_CRASH_HANDLE_RIT2);
           } else {
             setNextState(ServerCrashState.SERVER_CRASH_FINISH);
@@ -241,9 +241,9 @@ public class ServerCrashProcedure
     AssignmentManager am = env.getMasterServices().getAssignmentManager();
     // TODO: For Matteo. Below BLOCKs!!!! Redo so can relinquish executor while it is running.
     // PROBLEM!!! WE BLOCK HERE.
-    am.getRegionStates().logSplitting(this.serverName);
-    mwm.splitLog(this.serverName);
-    am.getRegionStates().logSplit(this.serverName);
+    am.getRegionStates().logSplitting(this.serverName); // 设置server state为SPLITTING
+    mwm.splitLog(this.serverName); // 分布式split log
+    am.getRegionStates().logSplit(this.serverName); // 设置server state为OFFLINE
     LOG.debug("Done splitting WALs {}", this);
   }
 
@@ -392,14 +392,14 @@ public class ServerCrashProcedure
     while (it.hasNext()) {
       final RegionInfo hri = it.next();
       RegionTransitionProcedure rtp = am.getRegionStates().getRegionTransitionProcedure(hri);
-      if (rtp == null) {
+      if (rtp == null) { // 是否正在做RIT操作
         continue;
       }
       // Make sure the RIT is against this crashed server. In the case where there are many
       // processings of a crashed server -- backed up for whatever reason (slow WAL split) --
       // then a previous SCP may have already failed an assign, etc., and it may have a new
       // location target; DO NOT fail these else we make for assign flux.
-      ServerName rtpServerName = rtp.getServer(env);
+      ServerName rtpServerName = rtp.getServer(env); // 目标RS
       if (rtpServerName == null) {
         LOG.warn("RIT with ServerName null! " + rtp);
         continue;
@@ -411,7 +411,7 @@ public class ServerCrashProcedure
       if (sce == null) {
         sce = new ServerCrashException(getProcId(), getServerName());
       }
-      rtp.remoteCallFailed(env, this.serverName, sce);
+      rtp.remoteCallFailed(env, this.serverName, sce); // 如果目标RS已经挂掉，则通知这个procedure
       // If an assign, remove from passed-in list of regions so we subsequently do not create
       // a new assign; the exisitng assign after the call to remoteCallFailed will recalibrate
       // and assign to a server other than the crashed one; no need to create new assign.
@@ -419,7 +419,7 @@ public class ServerCrashProcedure
       // it will complete. Done.
       it.remove();
     }
-    return toAssign;
+    return toAssign; // 剩下的是不在RIT列表中的
   }
 
   @Override

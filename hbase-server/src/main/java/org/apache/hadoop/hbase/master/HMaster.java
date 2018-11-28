@@ -504,6 +504,7 @@ public class HMaster extends HRegionServer implements MasterServices {
 
       // Do we publish the status?
 
+      // publish干什么用的？
       boolean shouldPublish = conf.getBoolean(HConstants.STATUS_PUBLISHED,
           HConstants.STATUS_PUBLISHED_DEFAULT);
       Class<? extends ClusterStatusPublisher.Publisher> publisherClass =
@@ -524,7 +525,7 @@ public class HMaster extends HRegionServer implements MasterServices {
 
       // Some unit tests don't need a cluster, so no zookeeper at all
       if (!conf.getBoolean("hbase.testing.nocluster", false)) {
-        this.activeMasterManager = new ActiveMasterManager(zooKeeper, this.serverName, this);
+        this.activeMasterManager = new ActiveMasterManager(zooKeeper, this.serverName, this); // 选主
       } else {
         this.activeMasterManager = null;
       }
@@ -549,7 +550,7 @@ public class HMaster extends HRegionServer implements MasterServices {
       if (!conf.getBoolean("hbase.testing.nocluster", false)) {
         Threads.setDaemonThreadRunning(new Thread(() -> {
           try {
-            int infoPort = putUpJettyServer();
+            int infoPort = putUpJettyServer(); // 启动web info服务
             startActiveMasterManager(infoPort);
           } catch (Throwable t) {
             // Make sure we log the exception.
@@ -795,6 +796,7 @@ public class HMaster extends HRegionServer implements MasterServices {
   private void finishActiveMasterInitialization(MonitoredTask status)
       throws IOException, InterruptedException, KeeperException {
 
+    // 主master，15分钟还未初始化，将退出
     Thread zombieDetector = new Thread(new InitializationMonitor(this),
         "ActiveMasterInitializationMonitor-" + System.currentTimeMillis());
     zombieDetector.setDaemon(true);
@@ -808,9 +810,9 @@ public class HMaster extends HRegionServer implements MasterServices {
     this.masterActiveTime = System.currentTimeMillis();
     // TODO: Do this using Dependency Injection, using PicoContainer, Guice or Spring.
     // Initialize the chunkCreator
-    initializeMemStoreChunkCreator();
-    this.fileSystemManager = new MasterFileSystem(conf);
-    this.walManager = new MasterWalManager(this);
+    initializeMemStoreChunkCreator(); // 分配一个大的chunk，减少heap中的内存碎片
+    this.fileSystemManager = new MasterFileSystem(conf); // 初始化HDFS目录结构
+    this.walManager = new MasterWalManager(this); // hlog相关：分裂等
 
     // enable table descriptors cache
     this.tableDescriptors.setCacheOn();
@@ -818,15 +820,15 @@ public class HMaster extends HRegionServer implements MasterServices {
     // warm-up HTDs cache on master initialization
     if (preLoadTableDescriptors) {
       status.setStatus("Pre-loading table descriptors");
-      this.tableDescriptors.getAll();
+      this.tableDescriptors.getAll(); // 加载table info
     }
 
     // Publish cluster ID; set it in Master too. The superclass RegionServer does this later but
     // only after it has checked in with the Master. At least a few tests ask Master for clusterId
     // before it has called its run method and before RegionServer has done the reportForDuty.
-    ClusterId clusterId = fileSystemManager.getClusterId();
+    ClusterId clusterId = fileSystemManager.getClusterId(); // 从HDFS上获取cluster id
     status.setStatus("Publishing Cluster ID " + clusterId + " in ZooKeeper");
-    ZKClusterId.setClusterId(this.zooKeeper, fileSystemManager.getClusterId());
+    ZKClusterId.setClusterId(this.zooKeeper, fileSystemManager.getClusterId()); // 设置zk node: /hbase/hbaseid
     this.clusterId = clusterId.toString();
 
     // Precaution. Put in place the old hbck1 lock file to fence out old hbase1s running their
@@ -838,13 +840,13 @@ public class HMaster extends HRegionServer implements MasterServices {
     }
 
     status.setStatus("Initialze ServerManager and schedule SCP for crash servers");
-    this.serverManager = createServerManager(this);
-    createProcedureExecutor();
+    this.serverManager = createServerManager(this); // 创建ServerManager对象
+    createProcedureExecutor(); // 创建procedure对象
     // Create Assignment Manager
     this.assignmentManager = new AssignmentManager(this);
-    this.assignmentManager.start();
+    this.assignmentManager.start(); // 启动分配region线程
     this.regionServerTracker = new RegionServerTracker(zooKeeper, this, this.serverManager);
-    this.regionServerTracker.start(
+    this.regionServerTracker.start( // 构造onlineServers和deadServers，并提交ServerCrashProcedure
       procedureExecutor.getProcedures().stream().filter(p -> p instanceof ServerCrashProcedure)
         .map(p -> ((ServerCrashProcedure) p).getServerName()).collect(Collectors.toSet()),
       walManager.getLiveServersFromWALDir());
@@ -854,7 +856,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     this.tableStateManager =
         this.conf.getBoolean(MirroringTableStateManager.MIRROR_TABLE_STATE_TO_ZK_KEY, true)?
         new MirroringTableStateManager(this):
-        new TableStateManager(this);
+        new TableStateManager(this); // 管理table状态，依赖meta表
 
     status.setStatus("Initializing ZK system trackers");
     initializeZKBasedSystemTrackers();
@@ -880,7 +882,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     status.setStatus("Initializing meta table if this is a new deploy");
     InitMetaProcedure initMetaProc = null;
     if (assignmentManager.getRegionStates().getRegionState(RegionInfoBuilder.FIRST_META_REGIONINFO)
-      .isOffline()) {
+      .isOffline()) { // meta table 离线的话，提交InitMetaProcedure，分配meta表
       Optional<Procedure<MasterProcedureEnv>> optProc = procedureExecutor.getProcedures().stream()
         .filter(p -> p instanceof InitMetaProcedure).findAny();
       if (optProc.isPresent()) {
@@ -902,10 +904,10 @@ public class HMaster extends HRegionServer implements MasterServices {
 
     // start up all service threads.
     status.setStatus("Initializing master service threads");
-    startServiceThreads();
+    startServiceThreads(); // 启动各种线程: procedure worker等
     // wait meta to be initialized after we start procedure executor
     if (initMetaProc != null) {
-      initMetaProc.await();
+      initMetaProc.await(); // 等待meta分配完成
     }
     tableStateManager.start();
     // Wake up this server to check in
@@ -917,7 +919,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     String statusStr = "Wait for region servers to report in";
     status.setStatus(statusStr);
     LOG.info(Objects.toString(status));
-    waitForRegionServers(status);
+    waitForRegionServers(status); // 等待RS加入
 
     // Check if master is shutting down because issue initializing regionservers or balancer.
     if (isStopped()) {
@@ -934,7 +936,7 @@ public class HMaster extends HRegionServer implements MasterServices {
 
     // Fix up assignment manager status
     status.setStatus("Starting assignment manager");
-    this.assignmentManager.joinCluster();
+    this.assignmentManager.joinCluster(); // 加载meta表，分配offline region
 
     // set cluster status again after user regions are assigned
     this.balancer.setClusterMetrics(getClusterMetricsWithoutCoprocessor());
@@ -947,7 +949,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     getChoreService().scheduleChore(balancerChore);
     this.normalizerChore = new RegionNormalizerChore(this);
     getChoreService().scheduleChore(normalizerChore);
-    this.catalogJanitorChore = new CatalogJanitor(this);
+    this.catalogJanitorChore = new CatalogJanitor(this); // 周期扫描meta表
     getChoreService().scheduleChore(catalogJanitorChore);
 
     status.setStatus("Starting cluster schema service");
@@ -1195,7 +1197,7 @@ public class HMaster extends HRegionServer implements MasterServices {
    // Any time changing this maxThreads to > 1, pls see the comment at
    // AccessController#postCompletedCreateTableAction
    this.executorService.startExecutorService(ExecutorType.MASTER_TABLE_OPERATIONS, 1);
-   startProcedureExecutor();
+   startProcedureExecutor(); // 启动procedure worker线程
 
    // Start log cleaner thread
    int cleanerInterval = conf.getInt("hbase.master.cleaner.interval", 600 * 1000);
@@ -2082,8 +2084,8 @@ public class HMaster extends HRegionServer implements MasterServices {
     MonitoredTask status = TaskMonitor.get().createStatus("Master startup");
     status.setDescription("Master startup");
     try {
-      if (activeMasterManager.blockUntilBecomingActiveMaster(timeout, status)) {
-        finishActiveMasterInitialization(status);
+      if (activeMasterManager.blockUntilBecomingActiveMaster(timeout, status)) { // 阻塞直到竞争成主
+        finishActiveMasterInitialization(status); // 初始化master
       }
     } catch (Throwable t) {
       status.setStatus("Failed to become active: " + t.getMessage());

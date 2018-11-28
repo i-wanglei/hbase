@@ -269,6 +269,7 @@ public class TableStateManager {
     fixTableStates(tableDescriptors, connection);
   }
 
+  // 根据meta表记录的table state(rowKey为表名)，构造tableName2State map
   private void fixTableStates(TableDescriptors tableDescriptors, Connection connection)
       throws IOException {
     Map<String, TableDescriptor> allDescriptors = tableDescriptors.getAll();
@@ -277,7 +278,7 @@ public class TableStateManager {
     MetaTableAccessor.fullScanTables(connection, new MetaTableAccessor.Visitor() {
       @Override
       public boolean visit(Result r) throws IOException {
-        TableState state = MetaTableAccessor.getTableState(r);
+        TableState state = MetaTableAccessor.getTableState(r); // 解析table state
         states.put(state.getTableName().getNameAsString(), state);
         return true;
       }
@@ -292,8 +293,9 @@ public class TableStateManager {
       }
       TableState tableState = states.get(entry.getKey());
       if (tableState == null) {
+        // 如果meta表中没记录table state，认为此表为enable状态
         LOG.warn(tableName + " has no table state in hbase:meta, assuming ENABLED");
-        MetaTableAccessor.updateTableState(connection, tableName, TableState.State.ENABLED);
+        MetaTableAccessor.updateTableState(connection, tableName, TableState.State.ENABLED); // 更新meta表
         fixTableState(new TableState(tableName, TableState.State.ENABLED));
         tableName2State.put(tableName, TableState.State.ENABLED);
       } else {

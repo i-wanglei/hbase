@@ -130,7 +130,7 @@ public final class ConnectionUtils {
   // TODO This has to still do PB marshalling/unmarshalling stuff. Check how/whether we can avoid.
   @VisibleForTesting // Class is visible so can assert we are short-circuiting when expected.
   public static class ShortCircuitingClusterConnection extends ConnectionImplementation {
-    private final ServerName serverName;
+    private final ServerName serverName; // 本机
     private final AdminService.BlockingInterface localHostAdmin;
     private final ClientService.BlockingInterface localHostClient;
 
