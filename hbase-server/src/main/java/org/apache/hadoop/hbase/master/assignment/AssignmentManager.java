@@ -213,6 +213,7 @@ public class AssignmentManager implements ServerListener {
     ZKWatcher zkw = master.getZooKeeper();
     // it could be null in some tests
     if (zkw != null) {
+      // 从ZK获取meta RegionState信息
       RegionState regionState = MetaTableLocator.getMetaRegionState(zkw);
       RegionStateNode regionStateNode =
         regionStates.getOrCreateRegionStateNode(RegionInfoBuilder.FIRST_META_REGIONINFO);

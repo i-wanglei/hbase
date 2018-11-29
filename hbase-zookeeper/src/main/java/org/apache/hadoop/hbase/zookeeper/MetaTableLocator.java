@@ -475,7 +475,7 @@ public class MetaTableLocator {
   /**
    * Load the meta region state from the meta server ZNode.
    */
-  public static RegionState getMetaRegionState(ZKWatcher zkw) throws KeeperException {
+  public static RegionState getMetaRegionState(ZKWatcher zkw) throws KeeperException { // 获取meta RegionState
     return getMetaRegionState(zkw, RegionInfo.DEFAULT_REPLICA_ID);
   }
 
