@@ -187,7 +187,7 @@ public class HRegionInfo implements RegionInfo, Comparable<HRegionInfo> {
   /** HRegionInfo for first meta region */
   // TODO: How come Meta regions still do not have encoded region names? Fix.
   public static final HRegionInfo FIRST_META_REGIONINFO =
-      new HRegionInfo(1L, TableName.META_TABLE_NAME);
+      new HRegionInfo(1L, TableName.META_TABLE_NAME); // meta表只能有一个region
 
   private void setHashCode() {
     int result = Arrays.hashCode(this.regionName);

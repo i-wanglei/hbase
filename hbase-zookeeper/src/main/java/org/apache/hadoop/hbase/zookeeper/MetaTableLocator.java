@@ -492,7 +492,7 @@ public class MetaTableLocator {
     RegionState.State state = RegionState.State.OPEN;
     ServerName serverName = null;
     try {
-      byte[] data = ZKUtil.getData(zkw, zkw.znodePaths.getZNodeForReplica(replicaId));
+      byte[] data = ZKUtil.getData(zkw, zkw.znodePaths.getZNodeForReplica(replicaId)); // 获取zkNode data
       if (data != null && data.length > 0 && ProtobufUtil.isPBMagicPrefix(data)) {
         try {
           int prefixLen = ProtobufUtil.lengthOfPBMagic();
@@ -500,9 +500,9 @@ public class MetaTableLocator {
             ZooKeeperProtos.MetaRegionServer.PARSER.parseFrom(data, prefixLen,
                     data.length - prefixLen);
           if (rl.hasState()) {
-            state = RegionState.State.convert(rl.getState());
+            state = RegionState.State.convert(rl.getState()); // 获取region state
           }
-          HBaseProtos.ServerName sn = rl.getServer();
+          HBaseProtos.ServerName sn = rl.getServer(); // 获取ServerName
           serverName = ServerName.valueOf(
             sn.getHostName(), sn.getPort(), sn.getStartCode());
         } catch (InvalidProtocolBufferException e) {
@@ -517,12 +517,12 @@ public class MetaTableLocator {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
-    if (serverName == null) {
+    if (serverName == null) { // 如果没有此zkNode，或者zkNode上的data为空，则设置meta region状态为OFFLINE
       state = RegionState.State.OFFLINE;
     }
     return new RegionState(
         RegionReplicaUtil.getRegionInfoForReplica(
-            RegionInfoBuilder.FIRST_META_REGIONINFO, replicaId),
+            RegionInfoBuilder.FIRST_META_REGIONINFO, replicaId), // 构造meta regionInfo
         state, serverName);
   }
 

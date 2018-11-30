@@ -37,7 +37,7 @@ public class RegionState {
   @InterfaceAudience.Private
   @InterfaceStability.Evolving
   public enum State {
-    OFFLINE,        // region is in an offline state
+    OFFLINE,        // region is in an offline state 分配region之前，先设置region状态为OFFLINE，一个中间状态，说明此region需要open
     OPENING,        // server has begun to open but not yet done
     OPEN,           // server opened region and updated meta
     CLOSING,        // server has begun to close but not yet done

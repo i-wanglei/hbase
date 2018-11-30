@@ -202,7 +202,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
     // AssignmentManager#processAssignQueue. Otherwise, balancer gives us location.
     // TODO: Region will be set into OFFLINE state below regardless of what its previous state was
     // This is dangerous? Wrong? What if region was in an unexpected state?
-    ServerName lastRegionLocation = regionNode.offline(); // 设置offline，清除region location
+    ServerName lastRegionLocation = regionNode.offline(); // 分配前，先更新region状态为OFFLINE，清除region location
     boolean retain = false;
     if (!forceNewPlan) { //  dispatcher失败时，会触发重新制定计划
       if (this.targetServer != null) {

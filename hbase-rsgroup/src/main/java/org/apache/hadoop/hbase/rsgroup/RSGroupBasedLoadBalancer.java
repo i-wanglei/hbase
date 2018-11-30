@@ -153,19 +153,20 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
     return regionPlans;
   }
 
+  // 轮训分配region
   @Override
   public Map<ServerName, List<RegionInfo>> roundRobinAssignment(
       List<RegionInfo> regions, List<ServerName> servers) throws HBaseIOException {
     Map<ServerName, List<RegionInfo>> assignments = Maps.newHashMap();
-    ListMultimap<String,RegionInfo> regionMap = ArrayListMultimap.create();
-    ListMultimap<String,ServerName> serverMap = ArrayListMultimap.create();
+    ListMultimap<String,RegionInfo> regionMap = ArrayListMultimap.create(); // <groupName,regionList>
+    ListMultimap<String,ServerName> serverMap = ArrayListMultimap.create(); // <groupName,serverList>
     generateGroupMaps(regions, servers, regionMap, serverMap);
     for(String groupKey : regionMap.keySet()) {
       if (regionMap.get(groupKey).size() > 0) {
         Map<ServerName, List<RegionInfo>> result =
             this.internalBalancer.roundRobinAssignment(
                 regionMap.get(groupKey),
-                serverMap.get(groupKey));
+                serverMap.get(groupKey)); // 轮训分配region
         if(result != null) {
           if(result.containsKey(LoadBalancer.BOGUS_SERVER_NAME) &&
               assignments.containsKey(LoadBalancer.BOGUS_SERVER_NAME)){
@@ -185,8 +186,9 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
       Map<RegionInfo, ServerName> regions, List<ServerName> servers) throws HBaseIOException {
     try {
       Map<ServerName, List<RegionInfo>> assignments = new TreeMap<>();
+      // <group,regionList>
       ListMultimap<String, RegionInfo> groupToRegion = ArrayListMultimap.create();
-      Set<RegionInfo> misplacedRegions = getMisplacedRegions(regions);
+      Set<RegionInfo> misplacedRegions = getMisplacedRegions(regions); // 分配的RS，不符合group
       for (RegionInfo region : regions.keySet()) {
         if (!misplacedRegions.contains(region)) {
           String groupName = rsGroupInfoManager.getRSGroupOfTable(region.getTable());
@@ -200,16 +202,16 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
       // Now the "groupToRegion" map has only the regions which have correct
       // assignments.
       for (String key : groupToRegion.keySet()) {
-        Map<RegionInfo, ServerName> currentAssignmentMap = new TreeMap<RegionInfo, ServerName>();
+        Map<RegionInfo, ServerName> currentAssignmentMap = new TreeMap<RegionInfo, ServerName>(); // 之前的分配信息
         List<RegionInfo> regionList = groupToRegion.get(key);
         RSGroupInfo info = rsGroupInfoManager.getRSGroup(key);
-        List<ServerName> candidateList = filterOfflineServers(info, servers);
+        List<ServerName> candidateList = filterOfflineServers(info, servers); // group中online的RS列表
         for (RegionInfo region : regionList) {
           currentAssignmentMap.put(region, regions.get(region));
         }
         if(candidateList.size() > 0) {
           assignments.putAll(this.internalBalancer.retainAssignment(
-              currentAssignmentMap, candidateList));
+              currentAssignmentMap, candidateList)); // 尽量使用已经设置好的分配信息
         }
       }
 
@@ -220,15 +222,15 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
           groupName = RSGroupInfo.DEFAULT_GROUP;
         }
         RSGroupInfo info = rsGroupInfoManager.getRSGroup(groupName);
-        List<ServerName> candidateList = filterOfflineServers(info, servers);
+        List<ServerName> candidateList = filterOfflineServers(info, servers); // group中online的RS列表
         ServerName server = this.internalBalancer.randomAssignment(region,
-            candidateList);
+            candidateList); // 随机分配
         if (server != null) {
           if (!assignments.containsKey(server)) {
             assignments.put(server, new ArrayList<>());
           }
           assignments.get(server).add(region);
-        } else {
+        } else { // 说明此region分不出去
           //if not server is available assign to bogus so it ends up in RIT
           if(!assignments.containsKey(LoadBalancer.BOGUS_SERVER_NAME)) {
             assignments.put(LoadBalancer.BOGUS_SERVER_NAME, new ArrayList<>());
@@ -252,6 +254,8 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
     return this.internalBalancer.randomAssignment(region, filteredServers);
   }
 
+  // regionMap<groupName,regionList>
+  // serverMap<groupName,serverList>
   private void generateGroupMaps(
     List<RegionInfo> regions,
     List<ServerName> servers,
@@ -278,6 +282,7 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
     }
   }
 
+  // 过滤掉group中offline的RS
   private List<ServerName> filterOfflineServers(RSGroupInfo RSGroupInfo,
                                                 List<ServerName> onlineServers) {
     if (RSGroupInfo != null) {
@@ -298,7 +303,7 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
    * @return the list
    */
   private List<ServerName> filterServers(Set<Address> servers,
-                                         List<ServerName> onlineServers) {
+                                         List<ServerName> onlineServers) { // 取出servers中online的RS
     /**
      * servers is actually a TreeSet (see {@link org.apache.hadoop.hbase.rsgroup.RSGroupInfo}),
      * having its contains()'s time complexity as O(logn), which is good enough.
@@ -314,6 +319,7 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
     return finalList;
   }
 
+  // 配置的group中，并没有此RS，才会加入到misplacedRegions set中
   @VisibleForTesting
   public Set<RegionInfo> getMisplacedRegions(
       Map<RegionInfo, ServerName> regions) throws IOException {
@@ -324,19 +330,19 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
       String groupName = rsGroupInfoManager.getRSGroupOfTable(regionInfo.getTable());
       if (groupName == null) {
         LOG.info("Group not found for table " + regionInfo.getTable() + ", using default");
-        groupName = RSGroupInfo.DEFAULT_GROUP;
+        groupName = RSGroupInfo.DEFAULT_GROUP; // 没配置rsGroup，就用default group
       }
       RSGroupInfo info = rsGroupInfoManager.getRSGroup(groupName);
       if (assignedServer == null) {
         LOG.debug("There is no assigned server for {}", region);
         continue;
       }
-      RSGroupInfo otherInfo = rsGroupInfoManager.getRSGroupOfServer(assignedServer.getAddress());
+      RSGroupInfo otherInfo = rsGroupInfoManager.getRSGroupOfServer(assignedServer.getAddress()); // 获取RS所在的group
       if (info == null && otherInfo == null) {
         LOG.warn("Couldn't obtain rs group information for {} on {}", region, assignedServer);
         continue;
       }
-      if ((info == null || !info.containsServer(assignedServer.getAddress()))) {
+      if ((info == null || !info.containsServer(assignedServer.getAddress()))) { // 配置的group中，并没有此RS
         LOG.debug("Found misplaced region: " + regionInfo.getRegionNameAsString() +
             " on server: " + assignedServer +
             " found in group: " +  otherInfo +

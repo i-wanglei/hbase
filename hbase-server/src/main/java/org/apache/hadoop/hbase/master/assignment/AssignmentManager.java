@@ -1434,7 +1434,7 @@ public class AssignmentManager implements ServerListener {
   public void markRegionAsClosing(final RegionStateNode regionNode) throws IOException {
     final RegionInfo hri = regionNode.getRegionInfo();
     synchronized (regionNode) {
-      regionNode.transitionState(State.CLOSING, RegionStates.STATES_EXPECTED_ON_CLOSE);
+      regionNode.transitionState(State.CLOSING, RegionStates.STATES_EXPECTED_ON_CLOSE); // 更新region状态为CLOSING
       // Set meta has not initialized early. so people trying to create/edit tables will wait
       if (isMetaRegion(hri)) {
         setMetaAssigned(hri, false);
@@ -1624,10 +1624,10 @@ public class AssignmentManager implements ServerListener {
     }
 
     // TODO: Optimize balancer. pass a RegionPlan?
-    final HashMap<RegionInfo, ServerName> retainMap = new HashMap<>();
-    final List<RegionInfo> userHRIs = new ArrayList<>(regions.size());
+    final HashMap<RegionInfo, ServerName> retainMap = new HashMap<>(); // 已经分配了RS
+    final List<RegionInfo> userHRIs = new ArrayList<>(regions.size()); // 没分配RS的用户表
     // Regions for system tables requiring reassignment
-    final List<RegionInfo> systemHRIs = new ArrayList<>();
+    final List<RegionInfo> systemHRIs = new ArrayList<>(); // 没分配RS的系统表
     for (RegionStateNode regionStateNode: regions.values()) {
       boolean sysTable = regionStateNode.isSystemTable();
       final List<RegionInfo> hris = sysTable? systemHRIs: userHRIs;
@@ -1659,7 +1659,7 @@ public class AssignmentManager implements ServerListener {
     }
 
     // step 3: 制定分配计划
-    if (!systemHRIs.isEmpty()) { // 优先分配system region
+    if (!systemHRIs.isEmpty()) { // 先分配系统表region
       // System table regions requiring reassignment are present, get region servers
       // not available for system table regions
       final List<ServerName> excludeServers = getExcludedServersForSystemTable(); // 获取低版本RS列表
@@ -1676,9 +1676,11 @@ public class AssignmentManager implements ServerListener {
           serversForSysTables.isEmpty()? servers: serversForSysTables);
     }
 
+    // 再分配用户表region
     processAssignmentPlans(regions, retainMap, userHRIs, servers);
   }
 
+  // 制定分配计划，并唤醒AssignProcedure继续分配过程
   private void processAssignmentPlans(final HashMap<RegionInfo, RegionStateNode> regions,
       final HashMap<RegionInfo, ServerName> retainMap, final List<RegionInfo> hris,
       final List<ServerName> servers) {
@@ -1710,6 +1712,7 @@ public class AssignmentManager implements ServerListener {
         LOG.trace("round robin regions=" + hris);
       }
       try {
+        // 为未分配的region指定分配计划
         acceptPlan(regions, balancer.roundRobinAssignment(hris, servers));
       } catch (HBaseIOException e) {
         LOG.warn("unable to round-robin assignment", e);

@@ -1379,9 +1379,10 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
    * @param servers available servers
    * @return map of servers and regions to be assigned to them
    */
+  // 尽量使用已经设置好的分配信息，但如果分配的RS挂了，会根据balance信息随机选择一个RS
   @Override
   public Map<ServerName, List<RegionInfo>> retainAssignment(Map<RegionInfo, ServerName> regions,
-      List<ServerName> servers) throws HBaseIOException { // 制定分配计划
+      List<ServerName> servers) throws HBaseIOException {
     // Update metrics
     metricsBalancer.incrMiscInvocations();
     // 如果hbase.balancer.tablesOnMaster.systemTablesOnly=true，分配systemTable到master
@@ -1403,7 +1404,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       LOG.warn("Wanted to do retain assignment but no servers to assign to");
       return null;
     }
-    // 只有一个RS，把所有的region分配到这个RS
+    // 只有一个RS，把所有的region分配给它
     if (numServers == 1) { // Only one server, nothing fancy we can do here
       ServerName server = servers.get(0);
       assignments.put(server, new ArrayList<>(regions.keySet()));
@@ -1416,7 +1417,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     // Group the servers by their hostname. It's possible we have multiple
     // servers on the same host on different ports.
-    ArrayListMultimap<String, ServerName> serversByHostname = ArrayListMultimap.create(); // 可分配RS map
+    ArrayListMultimap<String, ServerName> serversByHostname = ArrayListMultimap.create(); // RS map<hostname,ServerName>，同一台机器可能启多个RS
     for (ServerName server : servers) {
       assignments.put(server, new ArrayList<>());
       serversByHostname.put(server.getHostnameLowerCase(), server);
@@ -1430,7 +1431,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     int numRandomAssignments = 0;
     int numRetainedAssigments = 0;
 
-    Cluster cluster = createCluster(servers, regions.keySet());
+    Cluster cluster = createCluster(servers, regions.keySet()); // 维护balance统计信息
 
     for (Map.Entry<RegionInfo, ServerName> entry : regions.entrySet()) {
       RegionInfo region = entry.getKey();
@@ -1453,7 +1454,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
         // the usual case - one new server on same host
         ServerName target = localServers.get(0);
         assignments.get(target).add(region);
-        cluster.doAssignRegion(region, target);
+        cluster.doAssignRegion(region, target); // 维护统计信息
         numRetainedAssigments++;
       } else { // 之前的RS服务器上，启了多个region server
         // multiple new servers in the cluster on this same host
