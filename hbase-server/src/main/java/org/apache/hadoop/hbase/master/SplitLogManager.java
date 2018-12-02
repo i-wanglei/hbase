@@ -358,7 +358,7 @@ public class SplitLogManager {
     return tasks;
   }
 
-  private int activeTasks(final TaskBatch batch) {
+  private int activeTasks(final TaskBatch batch) { // 正在执行的task数量
     int count = 0;
     for (Task t : tasks.values()) {
       if (t.batch == batch && t.status == TerminationStatus.IN_PROGRESS) {
@@ -471,7 +471,7 @@ public class SplitLogManager {
    * All access is synchronized.
    */
   @InterfaceAudience.Private
-  public static class TaskBatch {
+  public static class TaskBatch { // split task任务计数
     public int installed = 0;
     public int done = 0;
     public int error = 0;

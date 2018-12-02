@@ -146,7 +146,7 @@ public class MasterWalManager {
   public Set<ServerName> getLiveServersFromWALDir() throws IOException {
     Path walDirPath = new Path(rootDir, HConstants.HREGION_LOGDIR_NAME);
     FileStatus[] walDirForLiveServers = FSUtils.listStatus(fs, walDirPath,
-      p -> !p.getName().endsWith(AbstractFSWALProvider.SPLITTING_EXT));
+      p -> !p.getName().endsWith(AbstractFSWALProvider.SPLITTING_EXT)); // 过滤掉正在split的目录
     if (walDirForLiveServers == null) {
       return Collections.emptySet();
     }
@@ -209,7 +209,7 @@ public class MasterWalManager {
           } else if (!onlineServers.contains(serverName)) {
             LOG.info("Log folder " + status.getPath() + " doesn't belong "
                 + "to a known region server, splitting");
-            serverNames.add(serverName);
+            serverNames.add(serverName); // 不包含在onlinServers列表中
           } else {
             LOG.info("Log folder " + status.getPath() + " belongs to an existing region server");
           }

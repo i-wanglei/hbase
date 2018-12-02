@@ -97,6 +97,7 @@ public class SplitLogWorker implements Runnable {
         // interrupted or has encountered a transient error and when it has
         // encountered a bad non-retry-able persistent error.
         try {
+          // 分裂hlog
           if (!WALSplitter.splitLogFile(walDir, fs.getFileStatus(new Path(walDir, filename)),
             fs, conf, p, sequenceIdChecker,
               server.getCoordinatedStateManager().getSplitLogWorkerCoordination(), factory)) {
