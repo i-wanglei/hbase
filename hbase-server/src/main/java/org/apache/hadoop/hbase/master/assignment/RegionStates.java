@@ -351,10 +351,10 @@ public class RegionStates {
   /**
    * State of Server; list of hosted regions, etc.
    */
-  public static class ServerStateNode implements Comparable<ServerStateNode> { // RS上的region列表
+  public static class ServerStateNode implements Comparable<ServerStateNode> {
     private final ServerReportEvent reportEvent;
 
-    private final Set<RegionStateNode> regions;
+    private final Set<RegionStateNode> regions; // RS上的region列表
     private final ServerName serverName;
 
     private volatile ServerState state = ServerState.ONLINE;

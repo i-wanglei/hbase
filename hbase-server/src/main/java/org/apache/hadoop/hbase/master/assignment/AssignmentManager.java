@@ -1291,7 +1291,7 @@ public class AssignmentManager implements ServerListener {
 
   // 提交ServerCrashProcedure
   public void submitServerCrash(final ServerName serverName, final boolean shouldSplitWal) {
-    boolean carryingMeta = isCarryingMeta(serverName);
+    boolean carryingMeta = isCarryingMeta(serverName); // 是否是主meta server
     ProcedureExecutor<MasterProcedureEnv> procExec = this.master.getMasterProcedureExecutor();
     procExec.submitProcedure(new ServerCrashProcedure(procExec.getEnvironment(), serverName,
       shouldSplitWal, carryingMeta));

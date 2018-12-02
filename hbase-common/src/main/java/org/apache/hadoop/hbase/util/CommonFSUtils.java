@@ -322,6 +322,7 @@ public abstract class CommonFSUtils {
    * @return String representation of the remaining relative path
    * @throws IOException from underlying filesystem
    */
+  // 转换path为相对目录: /hbase/WALs/servername/hlogname -> servername/hlogname
   public static String removeWALRootPath(Path path, final Configuration conf) throws IOException {
     Path root = getWALRootDir(conf);
     String pathStr = path.toString();

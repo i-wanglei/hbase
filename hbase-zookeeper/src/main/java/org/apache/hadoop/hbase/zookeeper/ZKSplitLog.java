@@ -47,7 +47,7 @@ public final class ZKSplitLog {
    * @param filename log file name (only the basename)
    */
   public static String getEncodedNodeName(ZKWatcher zkw, String filename) {
-    return ZNodePaths.joinZNode(zkw.znodePaths.splitLogZNode, encode(filename));
+    return ZNodePaths.joinZNode(zkw.znodePaths.splitLogZNode, encode(filename)); // /hbase/splitWAL/servername/hlogname
   }
 
   public static String getFileName(String node) {
@@ -118,6 +118,7 @@ public final class ZKSplitLog {
     }
   }
 
+  // 是否存在corrupt文件: /home/hbase/splitWAL/hlogname/corrupt
   public static boolean isCorrupted(Path rootdir, String logFileName,
       FileSystem fs) throws IOException {
     Path file = new Path(getSplitLogDir(rootdir, logFileName), "corrupt");

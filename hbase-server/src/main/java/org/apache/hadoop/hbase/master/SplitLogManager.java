@@ -164,7 +164,7 @@ public class SplitLogManager {
   @VisibleForTesting
   public static FileStatus[] getFileList(final Configuration conf, final List<Path> logDirs,
       final PathFilter filter)
-      throws IOException {
+      throws IOException { // 按filter进行过滤，获取指定目录下的文件
     List<FileStatus> fileStatus = new ArrayList<>();
     for (Path logDir : logDirs) {
       final FileSystem fs = logDir.getFileSystem(conf);
@@ -231,13 +231,13 @@ public class SplitLogManager {
    * @throws IOException If there was an error while splitting any log file
    * @return cumulative size of the logfiles split
    */
-  // 1、enqueueSplitTask(pathToLog, batch)将每个hlog加入TaskBatch，写入zk：/hbase/splitWAL/encode(文件名)
+  // 1、enqueueSplitTask(pathToLog, batch)将每个hlog加入TaskBatch，挂到ZK：/hbase/splitWAL/encode(文件名)
   // 2、waitForSplittingCompletion(batch, status)，循环等待直到TaskBatch的done +error= batch.installed
   public long splitLogDistributed(final Set<ServerName> serverNames, final List<Path> logDirs,
       PathFilter filter) throws IOException {
     MonitoredTask status = TaskMonitor.get().createStatus("Doing distributed log split in " +
       logDirs + " for serverName=" + serverNames);
-    FileStatus[] logfiles = getFileList(logDirs, filter);
+    FileStatus[] logfiles = getFileList(logDirs, filter); // 获取hlog文件
     status.setStatus("Checking directory contents...");
     SplitLogCounters.tot_mgr_log_split_batch_start.increment();
     LOG.info("Started splitting " + logfiles.length + " logs in " + logDirs +
@@ -252,12 +252,12 @@ public class SplitLogManager {
       // recover-lease is done. totalSize will be under in most cases and the
       // metrics that it drives will also be under-reported.
       totalSize += lf.getLen();
-      String pathToLog = FSUtils.removeWALRootPath(lf.getPath(), conf);
-      if (!enqueueSplitTask(pathToLog, batch)) {
+      String pathToLog = FSUtils.removeWALRootPath(lf.getPath(), conf); // 转换hlog path为相对目录
+      if (!enqueueSplitTask(pathToLog, batch)) { // 把任务挂到ZK上，每个hlog文件是一个任务
         throw new IOException("duplicate log split scheduled for " + lf.getPath());
       }
     }
-    waitForSplittingCompletion(batch, status);
+    waitForSplittingCompletion(batch, status); // 等待所有的任务完成
 
     if (batch.done != batch.installed) {
       batch.isDead = true;
@@ -266,9 +266,9 @@ public class SplitLogManager {
           + " but only " + batch.done + " done");
       String msg = "error or interrupted while splitting logs in " + logDirs + " Task = " + batch;
       status.abort(msg);
-      throw new IOException(msg);
+      throw new IOException(msg); // 如果done的任务数和installed的任务数不同，将会抛异常
     }
-    for (Path logDir : logDirs) {
+    for (Path logDir : logDirs) { // 所有installed的任务都完成了，则删除hlog文件
       status.setStatus("Cleaning up log directory...");
       final FileSystem fs = logDir.getFileSystem(conf);
       try {
@@ -304,28 +304,29 @@ public class SplitLogManager {
    */
   boolean enqueueSplitTask(String taskname, TaskBatch batch) {
     lastTaskCreateTime = EnvironmentEdgeManager.currentTime();
-    String task = getSplitLogManagerCoordination().prepareTask(taskname);
+    String task = getSplitLogManagerCoordination().prepareTask(taskname); // 获取zk node名字
     Task oldtask = createTaskIfAbsent(task, batch);
     if (oldtask == null) {
       // publish the task in the coordination engine
-      getSplitLogManagerCoordination().submitTask(task);
+      getSplitLogManagerCoordination().submitTask(task); // 把任务挂到ZK上，异步创建znode
       return true;
     }
     return false;
   }
 
+  // 等待所有的任务完成：batch.done + batch.error == batch.installed
   private void waitForSplittingCompletion(TaskBatch batch, MonitoredTask status) {
     synchronized (batch) {
       while ((batch.done + batch.error) != batch.installed) {
         try {
           status.setStatus("Waiting for distributed tasks to finish. " + " scheduled="
               + batch.installed + " done=" + batch.done + " error=" + batch.error);
-          int remaining = batch.installed - (batch.done + batch.error);
-          int actual = activeTasks(batch);
+          int remaining = batch.installed - (batch.done + batch.error); // 未完成的任务数
+          int actual = activeTasks(batch); // 正在执行的任务数
           if (remaining != actual) {
             LOG.warn("Expected " + remaining + " active tasks, but actually there are " + actual);
           }
-          int remainingTasks = getSplitLogManagerCoordination().remainingTasksInCoordination();
+          int remainingTasks = getSplitLogManagerCoordination().remainingTasksInCoordination(); // zk上挂的任务数
           if (remainingTasks >= 0 && actual > remainingTasks) {
             LOG.warn("Expected at least" + actual + " tasks remaining, but actually there are "
                 + remainingTasks);
@@ -380,12 +381,12 @@ public class SplitLogManager {
     Task newtask = new Task();
     newtask.batch = batch;
     oldtask = tasks.putIfAbsent(path, newtask);
-    if (oldtask == null) {
+    if (oldtask == null) { // 说明第一次添加此task(newtask)到tasks中
       batch.installed++;
       return null;
     }
     // new task was not used.
-    synchronized (oldtask) {
+    synchronized (oldtask) { // 说明之前添加过此task，处理一下它的状态
       if (oldtask.isOrphan()) {
         if (oldtask.status == SUCCESS) {
           // The task is already done. Do not install the batch for this

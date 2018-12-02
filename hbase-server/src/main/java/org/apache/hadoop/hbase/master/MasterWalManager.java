@@ -254,7 +254,7 @@ public class MasterWalManager {
    * @param serverNames logs belonging to these servers will be split
    */
   public void splitMetaLog(final Set<ServerName> serverNames) throws IOException {
-    splitLog(serverNames, META_FILTER);
+    splitLog(serverNames, META_FILTER); // 只split meta表的hlog
   }
 
   @edu.umd.cs.findbugs.annotations.SuppressWarnings(value="UL_UNRELEASED_LOCK", justification=
@@ -263,7 +263,7 @@ public class MasterWalManager {
   private List<Path> getLogDirs(final Set<ServerName> serverNames) throws IOException {
     List<Path> logDirs = new ArrayList<>();
     boolean needReleaseLock = false;
-    if (!this.services.isInitialized()) {
+    if (!this.services.isInitialized()) { // master没初始化好的时候，也可以执行
       // during master initialization, we could have multiple places splitting a same wal
       // XXX: Does this still exist after we move to proc-v2?
       this.splitLogLock.lock();
@@ -272,16 +272,16 @@ public class MasterWalManager {
     try {
       for (ServerName serverName : serverNames) {
         Path logDir = new Path(this.rootDir,
-          AbstractFSWALProvider.getWALDirectoryName(serverName.toString()));
+          AbstractFSWALProvider.getWALDirectoryName(serverName.toString())); // /hbase/WALs/servername
         Path splitDir = logDir.suffix(AbstractFSWALProvider.SPLITTING_EXT);
         // Rename the directory so a rogue RS doesn't create more WALs
         if (fs.exists(logDir)) {
-          if (!this.fs.rename(logDir, splitDir)) {
+          if (!this.fs.rename(logDir, splitDir)) { // 加后缀 -splitting
             throw new IOException("Failed fs.rename for log split: " + logDir);
           }
           logDir = splitDir;
           LOG.debug("Renamed region directory: " + splitDir);
-        } else if (!fs.exists(splitDir)) {
+        } else if (!fs.exists(splitDir)) { // logDir不存在，但splitDir存在，则直接加到logDirs列表中
           LOG.info("Log dir for server " + serverName + " does not exist");
           continue;
         }
@@ -301,7 +301,7 @@ public class MasterWalManager {
   }
 
   public void splitLog(final Set<ServerName> serverNames) throws IOException {
-    splitLog(serverNames, NON_META_FILTER);
+    splitLog(serverNames, NON_META_FILTER); // 排除掉meta hlog文件
   }
 
   /**
@@ -312,11 +312,11 @@ public class MasterWalManager {
    */
   public void splitLog(final Set<ServerName> serverNames, PathFilter filter) throws IOException {
     long splitTime = 0, splitLogSize = 0;
-    List<Path> logDirs = getLogDirs(serverNames);
+    List<Path> logDirs = getLogDirs(serverNames); // 获取serverNames的WAL目录，并且增加后缀 -splitting
 
     splitLogManager.handleDeadWorkers(serverNames);
     splitTime = EnvironmentEdgeManager.currentTime();
-    splitLogSize = splitLogManager.splitLogDistributed(serverNames, logDirs, filter);
+    splitLogSize = splitLogManager.splitLogDistributed(serverNames, logDirs, filter); // 提交并等待split log task完成
     splitTime = EnvironmentEdgeManager.currentTime() - splitTime;
 
     if (this.metricsMasterFilesystem != null) {

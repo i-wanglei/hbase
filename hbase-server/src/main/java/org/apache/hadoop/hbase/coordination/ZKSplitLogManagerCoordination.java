@@ -126,7 +126,7 @@ public class ZKSplitLogManagerCoordination extends ZKListener implements
       if (tasks != null) {
         int listSize = tasks.size();
         for (int i = 0; i < listSize; i++) {
-          if (!ZKSplitLog.isRescanNode(tasks.get(i))) {
+          if (!ZKSplitLog.isRescanNode(tasks.get(i))) { // 如果不是rescan node的话
             count++;
           }
         }
@@ -319,6 +319,7 @@ public class ZKSplitLogManagerCoordination extends ZKListener implements
     return false;
   }
 
+  // 把任务挂到ZK上，异步创建znode
   private void createNode(String path, Long retry_count) {
     SplitLogTask slt = new SplitLogTask.Unassigned(details.getServerName());
     ZKUtil.asyncCreate(this.watcher, path, slt.toByteArray(), new CreateAsyncCallback(),

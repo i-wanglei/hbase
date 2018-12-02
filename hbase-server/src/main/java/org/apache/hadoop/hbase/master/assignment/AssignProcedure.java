@@ -367,7 +367,7 @@ public class AssignProcedure extends RegionTransitionProcedure {
   @Override
   protected boolean remoteCallFailed(final MasterProcedureEnv env, final RegionStateNode regionNode,
       final IOException exception) {
-    handleFailure(env, regionNode);
+    handleFailure(env, regionNode); // 重新制定分配计划
     return true;
   }
 

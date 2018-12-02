@@ -76,7 +76,7 @@ public class ServerCrashProcedure
    */
   private List<RegionInfo> regionsOnCrashedServer;
 
-  private boolean carryingMeta = false;
+  private boolean carryingMeta = false; // 是否是主meta server
   private boolean shouldSplitWal;
 
   /**
@@ -124,13 +124,13 @@ public class ServerCrashProcedure
           }
           break;
         case SERVER_CRASH_SPLIT_META_LOGS:
-          splitMetaLogs(env);
+          splitMetaLogs(env); // split meta表hlog文件
           setNextState(ServerCrashState.SERVER_CRASH_ASSIGN_META);
           break;
         case SERVER_CRASH_ASSIGN_META:
-          handleRIT(env, Arrays.asList(RegionInfoBuilder.FIRST_META_REGIONINFO));
+          handleRIT(env, Arrays.asList(RegionInfoBuilder.FIRST_META_REGIONINFO)); // meta表是否正在RIT
           addChildProcedure(env.getAssignmentManager()
-            .createAssignProcedure(RegionInfoBuilder.FIRST_META_REGIONINFO));
+            .createAssignProcedure(RegionInfoBuilder.FIRST_META_REGIONINFO)); // 分配meta表
           setNextState(ServerCrashState.SERVER_CRASH_GET_REGIONS);
           break;
         case SERVER_CRASH_PROCESS_META:
@@ -141,7 +141,7 @@ public class ServerCrashProcedure
           break;
         case SERVER_CRASH_GET_REGIONS:
           // If hbase:meta is not assigned, yield.
-          if (env.getAssignmentManager().waitMetaLoaded(this)) {
+          if (env.getAssignmentManager().waitMetaLoaded(this)) { // 如果meta表还未分配好，则挂起当前procedure
             throw new ProcedureSuspendedException();
           }
           this.regionsOnCrashedServer = services.getAssignmentManager().getRegionStates()
@@ -162,7 +162,7 @@ public class ServerCrashProcedure
           // If no regions to assign, skip assign and skip to the finish.
           // Filter out meta regions. Those are handled elsewhere in this procedure.
           // Filter changes this.regionsOnCrashedServer.
-          if (filterDefaultMetaRegions(regionsOnCrashedServer)) { // 排除掉default meta region
+          if (filterDefaultMetaRegions(regionsOnCrashedServer)) { // 排除掉主meta region
             if (LOG.isTraceEnabled()) {
               LOG.trace("Assigning regions " +
                 RegionInfo.getShortNameToLog(regionsOnCrashedServer) + ", " + this +
@@ -174,7 +174,7 @@ public class ServerCrashProcedure
             // condition if a dispatch RPC fails inside in AssignProcedure/UnassignProcedure.
             // AssignProcedure just keeps retrying. UnassignProcedure is more complicated. See where
             // it does the check by calling am#isLogSplittingDone.
-            List<RegionInfo> toAssign = handleRIT(env, regionsOnCrashedServer); // 通知RIT列表中的procedure，返回剩余的region
+            List<RegionInfo> toAssign = handleRIT(env, regionsOnCrashedServer); // 通知RIT列表中，目标为此挂掉RS的procedure进入失败流程，返回剩余的region
             AssignmentManager am = env.getAssignmentManager();
             // CreateAssignProcedure will try to use the old location for the region deploy.
             addChildProcedure(am.createAssignProcedures(toAssign)); // 创建AssignProcedure并添加到subProcedure列表
@@ -380,6 +380,7 @@ public class ServerCrashProcedure
    * @param regions Regions on the Crashed Server.
    * @return List of regions we should assign to new homes (not same as regions on crashed server).
    */
+  // 如果region正在RIT procedure，并且目标RS是这个挂掉的RS，则通知procedure进入失败处理流程
   private List<RegionInfo> handleRIT(final MasterProcedureEnv env, List<RegionInfo> regions) {
     if (regions == null || regions.isEmpty()) {
       return Collections.emptyList();
@@ -411,7 +412,7 @@ public class ServerCrashProcedure
       if (sce == null) {
         sce = new ServerCrashException(getProcId(), getServerName());
       }
-      rtp.remoteCallFailed(env, this.serverName, sce); // 如果目标RS已经挂掉，则通知这个procedure
+      rtp.remoteCallFailed(env, this.serverName, sce); // 如果目标RS已经挂掉，则通知这个procedure，进去失败处理流程
       // If an assign, remove from passed-in list of regions so we subsequently do not create
       // a new assign; the exisitng assign after the call to remoteCallFailed will recalibrate
       // and assign to a server other than the crashed one; no need to create new assign.

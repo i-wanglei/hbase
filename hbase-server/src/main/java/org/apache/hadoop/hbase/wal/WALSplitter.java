@@ -376,6 +376,7 @@ public class WALSplitter {
     Path rootdir = FSUtils.getWALRootDir(conf);
     Path oldLogDir = new Path(rootdir, HConstants.HREGION_OLDLOGDIR_NAME);
     Path logPath;
+    // 相对路径转绝对路径
     if (FSUtils.isStartingWithPath(rootdir, logfile)) {
       logPath = new Path(logfile);
     } else {
@@ -390,13 +391,15 @@ public class WALSplitter {
     List<Path> corruptedLogs = new ArrayList<>();
     FileSystem fs;
     fs = rootdir.getFileSystem(conf);
-    if (ZKSplitLog.isCorrupted(rootdir, logPath.getName(), fs)) {
+    if (ZKSplitLog.isCorrupted(rootdir, logPath.getName(), fs)) { // 是否存在corrupt文件
       corruptedLogs.add(logPath);
     } else {
       processedLogs.add(logPath);
     }
+    // step 1: 移动split过的文件到相应目录
     archiveLogs(corruptedLogs, processedLogs, oldLogDir, fs, conf);
-    Path stagingDir = ZKSplitLog.getSplitLogDir(rootdir, logPath.getName());
+    // step 2: 删除临时文件
+    Path stagingDir = ZKSplitLog.getSplitLogDir(rootdir, logPath.getName()); // /home/hbase/splitWAL/hlogname
     fs.delete(stagingDir, true);
   }
 
@@ -416,7 +419,7 @@ public class WALSplitter {
       final List<Path> corruptedLogs,
       final List<Path> processedLogs, final Path oldLogDir,
       final FileSystem fs, final Configuration conf) throws IOException {
-    final Path corruptDir = new Path(FSUtils.getWALRootDir(conf), HConstants.CORRUPT_DIR_NAME);
+    final Path corruptDir = new Path(FSUtils.getWALRootDir(conf), HConstants.CORRUPT_DIR_NAME); // /home/hbase/corrupt
     if (conf.get("hbase.regionserver.hlog.splitlog.corrupt.dir") != null) {
       LOG.warn("hbase.regionserver.hlog.splitlog.corrupt.dir is deprecated. Default to {}",
           corruptDir);
@@ -431,7 +434,7 @@ public class WALSplitter {
     for (Path corrupted : corruptedLogs) {
       Path p = new Path(corruptDir, corrupted.getName());
       if (fs.exists(corrupted)) {
-        if (!fs.rename(corrupted, p)) {
+        if (!fs.rename(corrupted, p)) { // 移动corrupt文件到corrupt目录
           LOG.warn("Unable to move corrupted log {} to {}", corrupted, p);
         } else {
           LOG.warn("Moved corrupted log {} to {}", corrupted, p);
@@ -442,7 +445,7 @@ public class WALSplitter {
     for (Path p : processedLogs) {
       Path newPath = AbstractFSWAL.getWALArchivePath(oldLogDir, p);
       if (fs.exists(p)) {
-        if (!FSUtils.renameAndSetModifyTime(fs, p, newPath)) {
+        if (!FSUtils.renameAndSetModifyTime(fs, p, newPath)) { // 移动split过的hlog文件到oldWALs目录
           LOG.warn("Unable to move {} to {}", p, newPath);
         } else {
           LOG.info("Archived processed log {} to {}", p, newPath);
