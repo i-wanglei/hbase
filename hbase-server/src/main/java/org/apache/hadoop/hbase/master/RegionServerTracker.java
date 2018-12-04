@@ -83,7 +83,7 @@ public class RegionServerTracker extends ZKListener {
     String nodePath = ZNodePaths.joinZNode(watcher.getZNodePaths().rsZNode, name);
     byte[] data;
     try {
-      data = ZKUtil.getData(watcher, nodePath);
+      data = ZKUtil.getData(watcher, nodePath); // znode上记录的RS信息
     } catch (InterruptedException e) {
       throw (InterruptedIOException) new InterruptedIOException().initCause(e);
     }
@@ -157,10 +157,10 @@ public class RegionServerTracker extends ZKListener {
       return;
     }
     Set<ServerName> servers =
-      names.stream().map(ServerName::parseServerName).collect(Collectors.toSet());
+      names.stream().map(ServerName::parseServerName).collect(Collectors.toSet()); // online RS列表
     for (Iterator<ServerName> iter = regionServers.iterator(); iter.hasNext();) {
       ServerName sn = iter.next();
-      if (!servers.contains(sn)) {
+      if (!servers.contains(sn)) { // 说明此RS挂了
         LOG.info("RegionServer ephemeral node deleted, processing expiration [{}]", sn);
         serverManager.expireServer(sn);
         iter.remove();
@@ -170,7 +170,7 @@ public class RegionServerTracker extends ZKListener {
     // server name.
     boolean newServerAdded = false;
     for (ServerName sn : servers) {
-      if (regionServers.add(sn)) {
+      if (regionServers.add(sn)) { // 添加到regionServers set成功，说明之前set中之前没这个RS
         newServerAdded = true;
         LOG.info("RegionServer ephemeral node created, adding [" + sn + "]");
       }

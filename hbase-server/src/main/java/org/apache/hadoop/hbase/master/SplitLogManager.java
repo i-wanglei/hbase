@@ -268,7 +268,7 @@ public class SplitLogManager {
       status.abort(msg);
       throw new IOException(msg); // 如果done的任务数和installed的任务数不同，将会抛异常
     }
-    for (Path logDir : logDirs) { // 所有installed的任务都完成了，则删除hlog文件
+    for (Path logDir : logDirs) { // 所有installed的任务都完成了，则删除server的hlog目录
       status.setStatus("Cleaning up log directory...");
       final FileSystem fs = logDir.getFileSystem(conf);
       try {
