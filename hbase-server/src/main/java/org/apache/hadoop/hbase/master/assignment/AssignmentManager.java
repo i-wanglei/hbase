@@ -1696,7 +1696,8 @@ public class AssignmentManager implements ServerListener {
         LOG.trace("retain assign regions=" + retainMap);
       }
       try {
-        // 制定分配计划，并把挂起的procedure重新放入procedureScheduler
+        // retainAssignment: 制定分配计划，
+        // acceptPlan: 把挂起的procedure重新放入procedureScheduler
         acceptPlan(regions, balancer.retainAssignment(retainMap, servers));
       } catch (HBaseIOException e) {
         LOG.warn("unable to retain assignment", e);
