@@ -31,15 +31,15 @@ import org.apache.yetus.audience.InterfaceAudience;
  * Stores the group information of region server groups.
  */
 @InterfaceAudience.Public
-public class RSGroupInfo {
+public class RSGroupInfo { // 描述一个rsgroup
   public static final String DEFAULT_GROUP = "default";
   public static final String NAMESPACE_DESC_PROP_GROUP = "hbase.rsgroup.name";
 
-  private final String name;
+  private final String name; // 组名
   // Keep servers in a sorted set so has an expected ordering when displayed.
-  private final SortedSet<Address> servers;
+  private final SortedSet<Address> servers; // RS列表
   // Keep tables sorted too.
-  private final SortedSet<TableName> tables;
+  private final SortedSet<TableName> tables; // table列表
 
   public RSGroupInfo(String name) {
     this(name, new TreeSet<Address>(), new TreeSet<TableName>());

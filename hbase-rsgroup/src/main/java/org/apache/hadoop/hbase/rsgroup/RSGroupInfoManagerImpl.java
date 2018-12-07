@@ -131,8 +131,8 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
 
   // There two Maps are immutable and wholesale replaced on each modification
   // so are safe to access concurrently. See class comment.
-  private volatile Map<String, RSGroupInfo> rsGroupMap = Collections.emptyMap();
-  private volatile Map<TableName, String> tableMap = Collections.emptyMap();
+  private volatile Map<String, RSGroupInfo> rsGroupMap = Collections.emptyMap(); // <groupName, RSGroupInfo>
+  private volatile Map<TableName, String> tableMap = Collections.emptyMap(); // <TableName, groupName>
 
   private final MasterServices masterServices;
   private Table rsGroupTable;
@@ -140,7 +140,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
   private final ZKWatcher watcher;
   private final RSGroupStartupWorker rsGroupStartupWorker = new RSGroupStartupWorker();
   // contains list of groups that were last flushed to persistent store
-  private Set<String> prevRSGroups = new HashSet<>();
+  private Set<String> prevRSGroups = new HashSet<>(); // 当前有哪些组，只记录一下组名
   private final ServerEventsListenerThread serverEventsListenerThread =
       new ServerEventsListenerThread();
   private FailedOpenUpdaterThread failedOpenUpdaterThread;
@@ -152,10 +152,10 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
   }
 
   private synchronized void init() throws IOException{
-    refresh();
-    serverEventsListenerThread.start();
-    masterServices.getServerManager().registerListener(serverEventsListenerThread);
-    failedOpenUpdaterThread = new FailedOpenUpdaterThread(masterServices.getConfiguration());
+    refresh(); // 从表或ZK中获取rsgroup信息，更新内存数据结构
+    serverEventsListenerThread.start(); // 监听RS的增删，并更新default组
+    masterServices.getServerManager().registerListener(serverEventsListenerThread); // 注册监听RS的增删事件
+    failedOpenUpdaterThread = new FailedOpenUpdaterThread(masterServices.getConfiguration()); // 当有新节点加入时，重新分配FAILED_OPEN状态的region
     failedOpenUpdaterThread.start();
     masterServices.getServerManager().registerListener(failedOpenUpdaterThread);
   }
@@ -173,14 +173,14 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
 
   @Override
   public synchronized void addRSGroup(RSGroupInfo rsGroupInfo) throws IOException {
-    checkGroupName(rsGroupInfo.getName());
+    checkGroupName(rsGroupInfo.getName()); // 检查rsgroup name是否合法
     if (rsGroupMap.get(rsGroupInfo.getName()) != null ||
         rsGroupInfo.getName().equals(RSGroupInfo.DEFAULT_GROUP)) {
       throw new DoNotRetryIOException("Group already exists: "+ rsGroupInfo.getName());
     }
     Map<String, RSGroupInfo> newGroupMap = Maps.newHashMap(rsGroupMap);
     newGroupMap.put(rsGroupInfo.getName(), rsGroupInfo);
-    flushConfig(newGroupMap);
+    flushConfig(newGroupMap); // 更新rsGroup信息
   }
 
   private RSGroupInfo getRSGroupInfo(final String groupName) throws DoNotRetryIOException {
@@ -200,9 +200,9 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     // it. If not 'default' group, add server to 'dst' rsgroup EVEN IF IT IS NOT online (could be a
     // rsgroup of dead servers that are to come back later).
     Set<Address> onlineServers = dst.getName().equals(RSGroupInfo.DEFAULT_GROUP)?
-        Utility.getOnlineServers(this.masterServices): null;
+        Utility.getOnlineServers(this.masterServices): null; // 目标组为default时，获取onlineServers列表
     for (Address el: servers) {
-      src.removeServer(el);
+      src.removeServer(el); // 从source组移除
       if (onlineServers != null) {
         if (!onlineServers.contains(el)) {
           if (LOG.isDebugEnabled()) {
@@ -211,7 +211,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
           continue;
         }
       }
-      dst.addServer(el);
+      dst.addServer(el); // 添加到目标组
     }
     Map<String,RSGroupInfo> newGroupMap = Maps.newHashMap(rsGroupMap);
     newGroupMap.put(src.getName(), src);
@@ -251,12 +251,12 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     for(TableName tableName: tableNames) {
       if (tableMap.containsKey(tableName)) {
         RSGroupInfo src = new RSGroupInfo(newGroupMap.get(tableMap.get(tableName)));
-        src.removeTable(tableName);
+        src.removeTable(tableName); // 从source组移除
         newGroupMap.put(src.getName(), src);
       }
       if(groupName != null) {
         RSGroupInfo dst = new RSGroupInfo(newGroupMap.get(groupName));
-        dst.addTable(tableName);
+        dst.addTable(tableName); // 添加到目标组
         newGroupMap.put(dst.getName(), dst);
       }
     }
@@ -291,12 +291,12 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     RSGroupInfo srcGroupInfo = getRSGroupInfo(srcGroup);
     RSGroupInfo dstGroupInfo = getRSGroupInfo(dstGroup);
 
-    //move servers
+    //move servers 把server从source移动到target
     for (Address el: servers) {
       srcGroupInfo.removeServer(el);
       dstGroupInfo.addServer(el);
     }
-    //move tables
+    //move tables 把table从source移动到target
     for(TableName tableName: tables) {
       srcGroupInfo.removeTable(tableName);
       dstGroupInfo.addTable(tableName);
@@ -309,6 +309,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     flushConfig(newGroupMap);
   }
 
+  // 从rsgroup中移除server列表
   @Override
   public synchronized void removeServers(Set<Address> servers) throws IOException {
     Map<String, RSGroupInfo> rsGroupInfos = new HashMap<String, RSGroupInfo>();
@@ -335,30 +336,30 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
   }
 
-  List<RSGroupInfo> retrieveGroupListFromGroupTable() throws IOException {
+  List<RSGroupInfo> retrieveGroupListFromGroupTable() throws IOException { // 从hbase:rsgroup中读取rsgroup信息
     List<RSGroupInfo> rsGroupInfoList = Lists.newArrayList();
     for (Result result : rsGroupTable.getScanner(new Scan())) {
       RSGroupProtos.RSGroupInfo proto = RSGroupProtos.RSGroupInfo.parseFrom(
-              result.getValue(META_FAMILY_BYTES, META_QUALIFIER_BYTES));
-      rsGroupInfoList.add(RSGroupProtobufUtil.toGroupInfo(proto));
+              result.getValue(META_FAMILY_BYTES, META_QUALIFIER_BYTES)); // column: m:i
+      rsGroupInfoList.add(RSGroupProtobufUtil.toGroupInfo(proto)); // 反序列化
     }
     return rsGroupInfoList;
   }
 
   List<RSGroupInfo> retrieveGroupListFromZookeeper() throws IOException {
-    String groupBasePath = ZNodePaths.joinZNode(watcher.znodePaths.baseZNode, rsGroupZNode);
+    String groupBasePath = ZNodePaths.joinZNode(watcher.znodePaths.baseZNode, rsGroupZNode); // znode: /hbase/rsgroup
     List<RSGroupInfo> RSGroupInfoList = Lists.newArrayList();
     //Overwrite any info stored by table, this takes precedence
     try {
       if(ZKUtil.checkExists(watcher, groupBasePath) != -1) {
         for(String znode: ZKUtil.listChildrenAndWatchForNewChildren(watcher, groupBasePath)) {
-          byte[] data = ZKUtil.getData(watcher, ZNodePaths.joinZNode(groupBasePath, znode));
+          byte[] data = ZKUtil.getData(watcher, ZNodePaths.joinZNode(groupBasePath, znode)); // 从znode上获取rsgroup信息
           if(data.length > 0) {
             ProtobufUtil.expectPBMagicPrefix(data);
             ByteArrayInputStream bis = new ByteArrayInputStream(
                 data, ProtobufUtil.lengthOfPBMagic(), data.length);
             RSGroupInfoList.add(RSGroupProtobufUtil.toGroupInfo(
-                RSGroupProtos.RSGroupInfo.parseFrom(bis)));
+                RSGroupProtos.RSGroupInfo.parseFrom(bis))); // 反序列化
           }
         }
         LOG.debug("Read ZK GroupInfo count:" + RSGroupInfoList.size());
@@ -378,47 +379,51 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
    * Read rsgroup info from the source of truth, the hbase:rsgroup table.
    * Update zk cache. Called on startup of the manager.
    */
+  // 从表或ZK中获取rsgroup信息，更新内存数据结构
   private synchronized void refresh(boolean forceOnline) throws IOException {
     List<RSGroupInfo> groupList = new LinkedList<>();
 
+    // step 1: 从表或ZK中获取rsgroup信息
     // Overwrite anything read from zk, group table is source of truth
     // if online read from GROUP table
-    if (forceOnline || isOnline()) {
+    if (forceOnline || isOnline()) { // 在线模式，从hbase:rsgroup表中获取rsgroup信息
       LOG.debug("Refreshing in Online mode.");
       if (rsGroupTable == null) {
         rsGroupTable = conn.getTable(RSGROUP_TABLE_NAME);
       }
       groupList.addAll(retrieveGroupListFromGroupTable());
-    } else {
+    } else { // 离线模式，从znode(/hbase/rsgroup)获取rsgroup信息
       LOG.debug("Refreshing in Offline mode.");
       groupList.addAll(retrieveGroupListFromZookeeper());
     }
 
+    // step 2: 构造default组信息
     // refresh default group, prune
-    NavigableSet<TableName> orphanTables = new TreeSet<>();
+    NavigableSet<TableName> orphanTables = new TreeSet<>(); // default group中的表
     for(String entry: masterServices.getTableDescriptors().getAll().keySet()) {
       orphanTables.add(TableName.valueOf(entry));
     }
     for (RSGroupInfo group: groupList) {
       if(!group.getName().equals(RSGroupInfo.DEFAULT_GROUP)) {
-        orphanTables.removeAll(group.getTables());
+        orphanTables.removeAll(group.getTables()); // 不在其他组中的表，就分到default组中(删除其他组的表)
       }
     }
 
     // This is added to the last of the list so it overwrites the 'default' rsgroup loaded
     // from region group table or zk
     groupList.add(new RSGroupInfo(RSGroupInfo.DEFAULT_GROUP, getDefaultServers(),
-        orphanTables));
+        orphanTables)); // 构造并添加default group到groupList
 
     // populate the data
-    HashMap<String, RSGroupInfo> newGroupMap = Maps.newHashMap();
-    HashMap<TableName, String> newTableMap = Maps.newHashMap();
+    HashMap<String, RSGroupInfo> newGroupMap = Maps.newHashMap(); // <groupName, RSGroupInfo>
+    HashMap<TableName, String> newTableMap = Maps.newHashMap(); // <TableName, groupName>
     for (RSGroupInfo group : groupList) {
       newGroupMap.put(group.getName(), group);
       for(TableName table: group.getTables()) {
         newTableMap.put(table, group.getName());
       }
     }
+    // step 3: 更新内存数据结构
     resetRSGroupAndTableMaps(newGroupMap, newTableMap);
     updateCacheOfRSGroups(rsGroupMap.keySet());
   }
@@ -430,14 +435,14 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
 
     // populate deletes
     for(String groupName : prevRSGroups) {
-      if(!groupMap.containsKey(groupName)) {
+      if(!groupMap.containsKey(groupName)) { // 新groupMap中不包含之前的group
         Delete d = new Delete(Bytes.toBytes(groupName));
         mutations.add(d);
       }
     }
 
     // populate puts
-    for(RSGroupInfo RSGroupInfo : groupMap.values()) {
+    for(RSGroupInfo RSGroupInfo : groupMap.values()) { // 并不判断是否变化，直接更新所有
       RSGroupProtos.RSGroupInfo proto = RSGroupProtobufUtil.toProtoGroupInfo(RSGroupInfo);
       Put p = new Put(Bytes.toBytes(RSGroupInfo.getName()));
       p.addColumn(META_FAMILY_BYTES, META_QUALIFIER_BYTES, proto.toByteArray());
@@ -448,7 +453,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
 
     if(mutations.size() > 0) {
-      multiMutate(mutations);
+      multiMutate(mutations); // 更新表
     }
     return newTableMap;
   }
@@ -458,60 +463,66 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     flushConfig(this.rsGroupMap);
   }
 
+  // 非在线模式，只能更新default组，并且只更新内存数据结构
+  // 在线模式，会更新内存数据结构、表和ZK
   private synchronized void flushConfig(Map<String, RSGroupInfo> newGroupMap)
   throws IOException {
     Map<TableName, String> newTableMap;
 
     // For offline mode persistence is still unavailable
     // We're refreshing in-memory state but only for default servers
-    if (!isOnline()) {
+    if (!isOnline()) { // 非在线模式，只能更新default组，并且只更新引用
       Map<String, RSGroupInfo> m = Maps.newHashMap(rsGroupMap);
       RSGroupInfo oldDefaultGroup = m.remove(RSGroupInfo.DEFAULT_GROUP);
-      RSGroupInfo newDefaultGroup = newGroupMap.remove(RSGroupInfo.DEFAULT_GROUP);
+      RSGroupInfo newDefaultGroup = newGroupMap.remove(RSGroupInfo.DEFAULT_GROUP); // 先remove
       if (!m.equals(newGroupMap) ||
           !oldDefaultGroup.getTables().equals(newDefaultGroup.getTables())) {
         throw new IOException("Only default servers can be updated during offline mode");
       }
-      newGroupMap.put(RSGroupInfo.DEFAULT_GROUP, newDefaultGroup);
-      rsGroupMap = newGroupMap;
+      newGroupMap.put(RSGroupInfo.DEFAULT_GROUP, newDefaultGroup); // 再put
+      rsGroupMap = newGroupMap; // 直接替换引用
       return;
     }
 
+    // step 1: 更新rsgroup表
     newTableMap = flushConfigTable(newGroupMap);
 
+    // step 2: 更新引用
     // Make changes visible after having been persisted to the source of truth
     resetRSGroupAndTableMaps(newGroupMap, newTableMap);
 
+    // step 3: 更新ZK
     try {
       String groupBasePath = ZNodePaths.joinZNode(watcher.znodePaths.baseZNode, rsGroupZNode);
-      ZKUtil.createAndFailSilent(watcher, groupBasePath, ProtobufMagic.PB_MAGIC);
+      ZKUtil.createAndFailSilent(watcher, groupBasePath, ProtobufMagic.PB_MAGIC); // 如果不存在，则创建节点：/hbase/rsgroup
 
       List<ZKUtil.ZKUtilOp> zkOps = new ArrayList<>(newGroupMap.size());
       for(String groupName : prevRSGroups) {
         if(!newGroupMap.containsKey(groupName)) {
-          String znode = ZNodePaths.joinZNode(groupBasePath, groupName);
-          zkOps.add(ZKUtil.ZKUtilOp.deleteNodeFailSilent(znode));
+          String znode = ZNodePaths.joinZNode(groupBasePath, groupName); // znode: /hbase/rsgroup/groupName
+          zkOps.add(ZKUtil.ZKUtilOp.deleteNodeFailSilent(znode)); // 构造对象，删除已不存在的rsgroup
         }
       }
 
 
       for (RSGroupInfo RSGroupInfo : newGroupMap.values()) {
         String znode = ZNodePaths.joinZNode(groupBasePath, RSGroupInfo.getName());
-        RSGroupProtos.RSGroupInfo proto = RSGroupProtobufUtil.toProtoGroupInfo(RSGroupInfo);
+        RSGroupProtos.RSGroupInfo proto = RSGroupProtobufUtil.toProtoGroupInfo(RSGroupInfo); // 序列化
         LOG.debug("Updating znode: "+znode);
-        ZKUtil.createAndFailSilent(watcher, znode);
-        zkOps.add(ZKUtil.ZKUtilOp.deleteNodeFailSilent(znode));
+        ZKUtil.createAndFailSilent(watcher, znode); // 创建节点
+        zkOps.add(ZKUtil.ZKUtilOp.deleteNodeFailSilent(znode)); // 删除老的
         zkOps.add(ZKUtil.ZKUtilOp.createAndFailSilent(znode,
-            ProtobufUtil.prependPBMagic(proto.toByteArray())));
+            ProtobufUtil.prependPBMagic(proto.toByteArray()))); // 创建新的
       }
       LOG.debug("Writing ZK GroupInfo count: " + zkOps.size());
 
-      ZKUtil.multiOrSequential(watcher, zkOps, false);
+      ZKUtil.multiOrSequential(watcher, zkOps, false); // 执行更新操作
     } catch (KeeperException e) {
       LOG.error("Failed to write to rsGroupZNode", e);
       masterServices.abort("Failed to write to rsGroupZNode", e);
       throw new IOException("Failed to write to rsGroupZNode",e);
     }
+    // step 4: 更新当前存在的组名cache
     updateCacheOfRSGroups(newGroupMap.keySet());
   }
 
@@ -520,7 +531,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
    * Caller must be synchronized on 'this'.
    */
   private void resetRSGroupAndTableMaps(Map<String, RSGroupInfo> newRSGroupMap,
-      Map<TableName, String> newTableMap) {
+      Map<TableName, String> newTableMap) { // 直接修改引用
     // Make maps Immutable.
     this.rsGroupMap = Collections.unmodifiableMap(newRSGroupMap);
     this.tableMap = Collections.unmodifiableMap(newTableMap);
@@ -531,7 +542,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
    * Caller must be synchronized on 'this'.
    * @param currentGroups Current list of Groups.
    */
-  private void updateCacheOfRSGroups(final Set<String> currentGroups) {
+  private void updateCacheOfRSGroups(final Set<String> currentGroups) { // 更新组名cache
     this.prevRSGroups.clear();
     this.prevRSGroups.addAll(currentGroups);
   }
@@ -554,7 +565,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
   }
 
   // Called by ServerEventsListenerThread. Presume it has lock on this manager when it runs.
-  private SortedSet<Address> getDefaultServers() throws IOException {
+  private SortedSet<Address> getDefaultServers() throws IOException { // 不在其他组中的RS，就分到default组中
     SortedSet<Address> defaultServers = Sets.newTreeSet();
     for (ServerName serverName : getOnlineRS()) {
       Address server =
@@ -563,7 +574,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
       for(RSGroupInfo rsgi: listRSGroups()) {
         if(!RSGroupInfo.DEFAULT_GROUP.equals(rsgi.getName()) &&
             rsgi.containsServer(server)) {
-          found = true;
+          found = true; // 判断server是否包含在其他组中
           break;
         }
       }
@@ -576,12 +587,12 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
 
   // Called by ServerEventsListenerThread. Synchronize on this because redoing
   // the rsGroupMap then writing it out.
-  private synchronized void updateDefaultServers(SortedSet<Address> servers) throws IOException {
+  private synchronized void updateDefaultServers(SortedSet<Address> servers) throws IOException { // 更新default组信息
     RSGroupInfo info = rsGroupMap.get(RSGroupInfo.DEFAULT_GROUP);
     RSGroupInfo newInfo = new RSGroupInfo(info.getName(), servers, info.getTables());
     HashMap<String, RSGroupInfo> newGroupMap = Maps.newHashMap(rsGroupMap);
     newGroupMap.put(newInfo.getName(), newInfo);
-    flushConfig(newGroupMap);
+    flushConfig(newGroupMap); // 更新default组信息
   }
 
   // Called by FailedOpenUpdaterThread
@@ -591,13 +602,13 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     for (RegionStateNode state:
         masterServices.getAssignmentManager().getRegionStates().getRegionsInTransition()) {
       if (state.isStuck()) {
-        stuckAssignments.add(state.getRegionInfo());
+        stuckAssignments.add(state.getRegionInfo()); // FAILED_OPEN状态的region
       }
     }
     for (RegionInfo region: stuckAssignments) {
       LOG.info("Retrying assignment of " + region);
       try {
-        masterServices.getAssignmentManager().unassign(region);
+        masterServices.getAssignmentManager().unassign(region); // 重新分配FAILED_OPEN状态的region
       } catch (IOException e) {
         LOG.warn("Unable to reassign " + region, e);
       }
@@ -610,6 +621,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
    * As a listener, we need to return immediately, so the real work of updating the servers is
    * done asynchronously in this thread.
    */
+  // 监听机器的增加和减少，只更新default组
   private class ServerEventsListenerThread extends Thread implements ServerListener {
     private final Logger LOG = LoggerFactory.getLogger(ServerEventsListenerThread.class);
     private boolean changed = false;
@@ -640,9 +652,9 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
       while(isMasterRunning(masterServices)) {
         try {
           LOG.info("Updating default servers.");
-          SortedSet<Address> servers = RSGroupInfoManagerImpl.this.getDefaultServers();
+          SortedSet<Address> servers = RSGroupInfoManagerImpl.this.getDefaultServers(); // default组中的server
           if (!servers.equals(prevDefaultServers)) {
-            RSGroupInfoManagerImpl.this.updateDefaultServers(servers);
+            RSGroupInfoManagerImpl.this.updateDefaultServers(servers); // 更新default组
             prevDefaultServers = servers;
             LOG.info("Updated with servers: "+servers.size());
           }
@@ -663,6 +675,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
   }
 
+  // 当有新节点加入时，重新分配 分配失败的region
   private class FailedOpenUpdaterThread extends Thread implements ServerListener {
     private final long waitInterval;
     private volatile boolean hasChanged = false;
@@ -712,7 +725,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
         }
 
         // Kick all regions in FAILED_OPEN state
-        updateFailedAssignments();
+        updateFailedAssignments(); // 重新分配 分配失败的region
       }
     }
 
@@ -724,6 +737,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
   }
 
+  // 等待meta、rsgroup、namespace表分配出去，并更新内存数据、rsgroup表和ZK
   private class RSGroupStartupWorker extends Thread {
     private final Logger LOG = LoggerFactory.getLogger(RSGroupStartupWorker.class);
     private volatile boolean online = false;
@@ -741,9 +755,9 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
 
     private boolean waitForGroupTableOnline() {
-      final List<RegionInfo> foundRegions = new LinkedList<>();
-      final List<RegionInfo> assignedRegions = new LinkedList<>();
-      final AtomicBoolean found = new AtomicBoolean(false);
+      final List<RegionInfo> foundRegions = new LinkedList<>(); // rsgroup region数
+      final List<RegionInfo> assignedRegions = new LinkedList<>(); // 分配出去的rsgroup region数
+      final AtomicBoolean found = new AtomicBoolean(false); // rsgroup表是否已经分配
       final TableStateManager tsm = masterServices.getTableStateManager();
       boolean createSent = false;
       while (!found.get() && isMasterRunning(masterServices)) {
@@ -751,22 +765,22 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
         assignedRegions.clear();
         found.set(true);
         try {
-          conn.getTable(TableName.NAMESPACE_TABLE_NAME);
-          conn.getTable(RSGROUP_TABLE_NAME);
+          conn.getTable(TableName.NAMESPACE_TABLE_NAME); // hbase:namespace
+          conn.getTable(RSGROUP_TABLE_NAME); // hbase:rsgroup
           boolean rootMetaFound =
               masterServices.getMetaTableLocator().verifyMetaRegionLocation(
-                  conn, masterServices.getZooKeeper(), 1);
-          final AtomicBoolean nsFound = new AtomicBoolean(false);
+                  conn, masterServices.getZooKeeper(), 1); // 确保meta表已经分出去
+          final AtomicBoolean nsFound = new AtomicBoolean(false); // namespace表是否已经分配
           if (rootMetaFound) {
             MetaTableAccessor.Visitor visitor = new DefaultVisitorBase() {
               @Override
               public boolean visitInternal(Result row) throws IOException {
-                RegionInfo info = MetaTableAccessor.getRegionInfo(row);
+                RegionInfo info = MetaTableAccessor.getRegionInfo(row); // 从meta表记录中获取RegionInfo
                 if (info != null) {
                   Cell serverCell =
                       row.getColumnLatestCell(HConstants.CATALOG_FAMILY,
                           HConstants.SERVER_QUALIFIER);
-                  if (RSGROUP_TABLE_NAME.equals(info.getTable()) && serverCell != null) {
+                  if (RSGROUP_TABLE_NAME.equals(info.getTable()) && serverCell != null) { // info为rsgroup表记录
                     ServerName sn =
                         ServerName.parseVersionedServerName(CellUtil.cloneValue(serverCell));
                     if (sn == null) {
@@ -785,7 +799,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
                     }
                     foundRegions.add(info);
                   }
-                  if (TableName.NAMESPACE_TABLE_NAME.equals(info.getTable())) {
+                  if (TableName.NAMESPACE_TABLE_NAME.equals(info.getTable())) { // info为namespace表记录
                     Cell cell = row.getColumnLatestCell(HConstants.CATALOG_FAMILY,
                         HConstants.SERVER_QUALIFIER);
                     ServerName sn = null;
@@ -812,10 +826,10 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
                 return true;
               }
             };
-            MetaTableAccessor.fullScanRegions(conn, visitor);
+            MetaTableAccessor.fullScanRegions(conn, visitor); // 扫描meta表
             // if no regions in meta then we have to create the table
-            if (foundRegions.size() < 1 && rootMetaFound && !createSent && nsFound.get()) {
-              createRSGroupTable();
+            if (foundRegions.size() < 1 && rootMetaFound && !createSent && nsFound.get()) { // foundRegions.size() < 1 说明rsgroup表还没有创建
+              createRSGroupTable(); // 创建rsgroup表
               createSent = true;
             }
             LOG.info("RSGroup table=" + RSGROUP_TABLE_NAME + " isOnline=" + found.get()
@@ -829,10 +843,10 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
           }
           if (found.get()) {
             LOG.debug("With group table online, refreshing cached information.");
-            RSGroupInfoManagerImpl.this.refresh(true);
+            RSGroupInfoManagerImpl.this.refresh(true); // 更新内存数据结构
             online = true;
             //flush any inconsistencies between ZK and HTable
-            RSGroupInfoManagerImpl.this.flushConfig();
+            RSGroupInfoManagerImpl.this.flushConfig(); // 更新表和ZK
           }
         } catch (RuntimeException e) {
           throw e;
@@ -849,7 +863,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
       return found.get();
     }
 
-    private void createRSGroupTable() throws IOException {
+    private void createRSGroupTable() throws IOException { // 新建rsgroup表
       Long procId = masterServices.createSystemTable(RSGROUP_TABLE_DESC);
       // wait for region to be online
       int tries = 600;
@@ -883,7 +897,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     return !masterServices.isAborted() && !masterServices.isStopped();
   }
 
-  private void multiMutate(List<Mutation> mutations) throws IOException {
+  private void multiMutate(List<Mutation> mutations) throws IOException { // 更新rsgroup表
     CoprocessorRpcChannel channel = rsGroupTable.coprocessorService(ROW_KEY);
     MultiRowMutationProtos.MutateRowsRequest.Builder mmrBuilder
       = MultiRowMutationProtos.MutateRowsRequest.newBuilder();
@@ -912,6 +926,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
   }
 
+  // 组名只能包含字母和数字
   private void checkGroupName(String groupName) throws ConstraintException {
     if (!groupName.matches("[a-zA-Z0-9_]+")) {
       throw new ConstraintException("RSGroup name should only contain alphanumeric characters");

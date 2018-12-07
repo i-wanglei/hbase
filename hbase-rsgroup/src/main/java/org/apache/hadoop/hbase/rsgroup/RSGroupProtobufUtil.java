@@ -34,7 +34,7 @@ final class RSGroupProtobufUtil {
   private RSGroupProtobufUtil() {
   }
 
-  static RSGroupInfo toGroupInfo(RSGroupProtos.RSGroupInfo proto) {
+  static RSGroupInfo toGroupInfo(RSGroupProtos.RSGroupInfo proto) { // 反序列化
     RSGroupInfo RSGroupInfo = new RSGroupInfo(proto.getName());
     for(HBaseProtos.ServerName el: proto.getServersList()) {
       RSGroupInfo.addServer(Address.fromParts(el.getHostName(), el.getPort()));
@@ -45,7 +45,7 @@ final class RSGroupProtobufUtil {
     return RSGroupInfo;
   }
 
-  static RSGroupProtos.RSGroupInfo toProtoGroupInfo(RSGroupInfo pojo) {
+  static RSGroupProtos.RSGroupInfo toProtoGroupInfo(RSGroupInfo pojo) { // 序列化
     List<TableProtos.TableName> tables = new ArrayList<>(pojo.getTables().size());
     for(TableName arg: pojo.getTables()) {
       tables.add(ProtobufUtil.toProtoTableName(arg));

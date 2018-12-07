@@ -1018,7 +1018,7 @@ public class MetaTableAccessor {
     Cell cell = r.getColumnLatestCell(getCatalogFamily(), qualifier);
     if (cell == null) return null;
     return RegionInfo.parseFromOrNull(cell.getValueArray(),
-      cell.getValueOffset(), cell.getValueLength());
+      cell.getValueOffset(), cell.getValueLength()); // 构造RegionInfo
   }
 
   /**

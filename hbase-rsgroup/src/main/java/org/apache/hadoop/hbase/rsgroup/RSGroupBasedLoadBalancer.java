@@ -209,6 +209,7 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
         for (RegionInfo region : regionList) {
           currentAssignmentMap.put(region, regions.get(region));
         }
+        // TODOWXY: 如果candidateList为空，currentAssignmentMap中的region该怎么办？不分配了？
         if(candidateList.size() > 0) {
           assignments.putAll(this.internalBalancer.retainAssignment(
               currentAssignmentMap, candidateList)); // 尽量使用已经设置好的分配信息
