@@ -63,7 +63,7 @@ class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
 
       // execute the task
       if (task instanceof InlineChore) {
-        execInlineChore((InlineChore) task);
+        execInlineChore((InlineChore) task); // 周期执行任务
       } else if (task instanceof DelayedProcedure) {
         execDelayedProcedure((DelayedProcedure<TEnvironment>) task);
       } else {
@@ -77,6 +77,7 @@ class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
     queue.add(chore);
   }
 
+  // 添加WAITING_TIMEOUT状态的procedure到DelayQueue中
   public void add(Procedure<TEnvironment> procedure) {
     assert procedure.getState() == ProcedureState.WAITING_TIMEOUT;
     LOG.info("ADDED {}; timeout={}, timestamp={}", procedure, procedure.getTimeout(),
@@ -88,6 +89,7 @@ class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
     return queue.remove(new DelayedProcedure<>(procedure));
   }
 
+  // 周期执行
   private void execInlineChore(InlineChore chore) {
     chore.run();
     add(chore);
@@ -98,7 +100,7 @@ class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
     // let one of the workers handle it.
     // Today we consider ProcedureInMemoryChore as InlineChores
     Procedure<TEnvironment> procedure = delayed.getObject();
-    if (procedure instanceof ProcedureInMemoryChore) {
+    if (procedure instanceof ProcedureInMemoryChore) { // 周期执行，和InlineChores功能一样
       executeInMemoryChore((ProcedureInMemoryChore<TEnvironment>) procedure);
       // if the procedure is in a waiting state again, put it back in the queue
       procedure.updateTimestamp();
@@ -107,10 +109,11 @@ class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
         queue.add(delayed);
       }
     } else {
-      executeTimedoutProcedure(procedure);
+      executeTimedoutProcedure(procedure); // 处理超时procedure，设置失败并回滚
     }
   }
 
+  // 周期执行
   private void executeInMemoryChore(ProcedureInMemoryChore<TEnvironment> chore) {
     if (!chore.isWaiting()) {
       return;
@@ -132,9 +135,9 @@ class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
     if (proc.setTimeoutFailure(executor.getEnvironment())) {
       long rootProcId = executor.getRootProcedureId(proc);
       RootProcedureState<TEnvironment> procStack = executor.getProcStack(rootProcId);
-      procStack.abort();
-      executor.getStore().update(proc);
-      executor.getScheduler().addFront(proc);
+      procStack.abort(); // 设置失败
+      executor.getStore().update(proc); // 更新store
+      executor.getScheduler().addFront(proc); // 添加到scheduler，执行回滚操作
     }
   }
 }

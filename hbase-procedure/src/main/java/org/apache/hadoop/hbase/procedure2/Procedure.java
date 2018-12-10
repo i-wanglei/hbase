@@ -779,6 +779,7 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
    * @return true to let the framework handle the timeout as abort, false in case the procedure
    *         handled the timeout itself.
    */
+  // 由于超时，引起失败
   protected synchronized boolean setTimeoutFailure(TEnvironment env) {
     if (state == ProcedureState.WAITING_TIMEOUT) {
       long timeDiff = EnvironmentEdgeManager.currentTime() - lastUpdate;

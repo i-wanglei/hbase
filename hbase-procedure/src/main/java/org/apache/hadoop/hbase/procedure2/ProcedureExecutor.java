@@ -193,6 +193,7 @@ public class ProcedureExecutor<TEnvironment> {
    * the master (e.g. master failover) so, if we delay a bit the real deletion of
    * the proc result the client will be able to get the result the next try.
    */
+  // 默认情况下：客户端5分钟内没有ack 或者 procedure完成时间超过10分钟，则从completedMap中移除
   private static class CompletedProcedureCleaner<TEnvironment>
       extends ProcedureInMemoryChore<TEnvironment> {
     private static final Logger LOG = LoggerFactory.getLogger(CompletedProcedureCleaner.class);
@@ -1699,7 +1700,7 @@ public class ProcedureExecutor<TEnvironment> {
         }
       } catch (ProcedureSuspendedException e) {
         LOG.trace("Suspend {}", procedure);
-        suspended = true; // 啥也不干，等着sub procedure执行完之后，重新提交此procedure？
+        suspended = true; // 啥也不干，等着sub procedure执行完之后，重新提交此procedure到scheduler
       } catch (ProcedureYieldException e) {
         LOG.trace("Yield {}", procedure, e);
         yieldProcedure(procedure);
@@ -1740,7 +1741,7 @@ public class ProcedureExecutor<TEnvironment> {
           }
         } else if (procedure.getState() == ProcedureState.WAITING_TIMEOUT) {
           LOG.trace("Added to timeoutExecutor {}", procedure);
-          timeoutExecutor.add(procedure);
+          timeoutExecutor.add(procedure); // 添加到DelayQueue，执行失败回滚操作
         } else if (!suspended) { // procedure没报错，且没有挂起
           // No subtask, so we are done
           procedure.setState(ProcedureState.SUCCESS);
@@ -2070,6 +2071,7 @@ public class ProcedureExecutor<TEnvironment> {
   // will have the tracker saying everything is in the last log.
   // ----------------------------------------------------------------------------
 
+  // 检查执行时间过长的worker线程数量，如果超过一定比例则增加worker线程数
   private final class WorkerMonitor extends InlineChore {
     public static final String WORKER_MONITOR_INTERVAL_CONF_KEY =
         "hbase.procedure.worker.monitor.interval.msec";
@@ -2093,13 +2095,14 @@ public class ProcedureExecutor<TEnvironment> {
 
     @Override
     public void run() {
-      final int stuckCount = checkForStuckWorkers();
-      checkThreadCount(stuckCount);
+      final int stuckCount = checkForStuckWorkers(); // 统计执行时间过长的procedure数量
+      checkThreadCount(stuckCount); // 检查是否需要增加worker线程
 
       // refresh interval (poor man dynamic conf update)
-      refreshConfig();
+      refreshConfig(); // 刷新配置
     }
 
+    // procedure运行时间超过10s(默认)，即为stuck
     private int checkForStuckWorkers() {
       // check if any of the worker is stuck
       int stuckCount = 0;
@@ -2116,6 +2119,7 @@ public class ProcedureExecutor<TEnvironment> {
       return stuckCount;
     }
 
+    // 卡住的procedure数(worker线程数)达到50%(默认)，则增加一个worker线程
     private void checkThreadCount(final int stuckCount) {
       // nothing to do if there are no runnable tasks
       if (stuckCount < 1 || !scheduler.hasRunnables()) {
