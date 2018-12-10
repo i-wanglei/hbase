@@ -1202,7 +1202,7 @@ public class AssignmentManager implements ServerListener {
   private void processOfflineRegions() {
     List<RegionInfo> offlineRegions = regionStates.getRegionStates().stream()
       .filter(RegionState::isOffline).filter(s -> isTableEnabled(s.getRegion().getTable()))
-      .map(RegionState::getRegion).collect(Collectors.toList()); // enable状态表中offline的region
+      .map(RegionState::getRegion).collect(Collectors.toList()); // offline的region(表状态需是enable)
     if (!offlineRegions.isEmpty()) {
       // 提交AssignProcedure，轮训分配region
       master.getMasterProcedureExecutor().submitProcedures(
