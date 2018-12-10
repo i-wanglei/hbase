@@ -1036,6 +1036,7 @@ public class AssignmentManager implements ServerListener {
   // ============================================================================================
   //  RIT chore
   // ============================================================================================
+  // 如果region rit时间超过60s，则打印warn信息
   private static class RegionInTransitionChore extends ProcedureInMemoryChore<MasterProcedureEnv> {
     public RegionInTransitionChore(final int timeoutMsec) {
       super(timeoutMsec);
@@ -1133,15 +1134,16 @@ public class AssignmentManager implements ServerListener {
       update(regionStates.getRegionFailedOpen(), statTimestamp);
     }
 
+    // 如果region rit时间超过60s(默认)，则添加到ritsOverThreshold map
     private void update(final Collection<RegionState> regions, final long currentTime) {
       for (RegionState state: regions) {
         totalRITs++;
         final long ritTime = currentTime - state.getStamp();
-        if (ritTime > ritThreshold) {
+        if (ritTime > ritThreshold) { // rit时间超过60s(默认)
           if (ritsOverThreshold == null) {
             ritsOverThreshold = new HashMap<String, RegionState>();
           }
-          ritsOverThreshold.put(state.getRegion().getEncodedName(), state);
+          ritsOverThreshold.put(state.getRegion().getEncodedName(), state); // 添加到ritsOverThreshold map
           totalRITsTwiceThreshold += (ritTime > (ritThreshold * 2)) ? 1 : 0;
         }
         if (oldestRITTime < ritTime) {

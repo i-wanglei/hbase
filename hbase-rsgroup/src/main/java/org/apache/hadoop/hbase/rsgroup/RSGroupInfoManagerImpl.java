@@ -484,7 +484,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
       return;
     }
 
-    // step 1: 更新rsgroup表
+    // step 1: 更新rsgroup表 (如果rsgroup表挂了，会在这里卡住)
     newTableMap = flushConfigTable(newGroupMap);
 
     // step 2: 更新引用
@@ -675,7 +675,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
     }
   }
 
-  // 当有新节点加入时，重新分配 分配失败的region
+  // 当有新节点加入时，重新分配FAILED_OPEN状态的region
   private class FailedOpenUpdaterThread extends Thread implements ServerListener {
     private final long waitInterval;
     private volatile boolean hasChanged = false;
@@ -725,7 +725,7 @@ final class RSGroupInfoManagerImpl implements RSGroupInfoManager {
         }
 
         // Kick all regions in FAILED_OPEN state
-        updateFailedAssignments(); // 重新分配 分配失败的region
+        updateFailedAssignments(); // 重新分配FAILED_OPEN状态的region
       }
     }
 

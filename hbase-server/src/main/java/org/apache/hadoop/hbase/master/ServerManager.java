@@ -131,7 +131,7 @@ public class ServerManager {
   private final Map<ServerName, AdminService.BlockingInterface> rsAdmins = new HashMap<>();
 
   /** List of region servers that should not get any more new regions. */
-  private final ArrayList<ServerName> drainingServers = new ArrayList<>();
+  private final ArrayList<ServerName> drainingServers = new ArrayList<>(); // 没挂但是当前不可用的RS列表，比如：decommission节点?
 
   private final MasterServices master;
   private final ClusterConnection connection;

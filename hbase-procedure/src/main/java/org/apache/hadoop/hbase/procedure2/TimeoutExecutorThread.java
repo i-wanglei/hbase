@@ -30,6 +30,9 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ProcedureProtos.Procedu
  * Runs task on a period such as check for stuck workers.
  * @see InlineChore
  */
+// TimeoutExecutorThread: WAITING_TIMEOUT状态的procedure(由ProcedureExecutor添加)，设置失败执行回滚
+// RegionInTransitionChore: 如果region rit时间超过60s，则打印warn信息
+// FailedOpenUpdaterThread: 当有新节点加入时，重新分配FAILED_OPEN状态的region
 @InterfaceAudience.Private
 class TimeoutExecutorThread<TEnvironment> extends StoppableThread {
 
