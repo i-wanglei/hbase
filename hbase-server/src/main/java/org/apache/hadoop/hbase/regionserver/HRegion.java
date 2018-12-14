@@ -6031,7 +6031,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           if (bulkLoadListener != null) {
             finalPath = bulkLoadListener.prepareBulkLoad(familyName, path, copyFile);
           }
-          Pair<Path, Path> pair = store.preBulkLoadHFile(finalPath, seqId);
+          Pair<Path, Path> pair = store.preBulkLoadHFile(finalPath, seqId); // 如果源和目的不是同一个集群，则copy过来
           lst.add(pair);
         } catch (IOException ioe) {
           // A failure here can cause an atomicity violation that we currently

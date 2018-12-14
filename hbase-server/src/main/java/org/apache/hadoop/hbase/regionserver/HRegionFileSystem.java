@@ -526,7 +526,7 @@ public class HRegionFileSystem {
     // We can't compare FileSystem instances as equals() includes UGI instance
     // as part of the comparison and won't work when doing SecureBulkLoad
     // TODO deal with viewFS
-    if (!FSHDFSUtils.isSameHdfs(conf, realSrcFs, desFs)) {
+    if (!FSHDFSUtils.isSameHdfs(conf, realSrcFs, desFs)) { // 如果源和目的不是同一个集群，则copy过来
       LOG.info("Bulk-load file " + srcPath + " is on different filesystem than " +
           "the destination store. Copying file over to destination filesystem.");
       Path tmpPath = createTempName();

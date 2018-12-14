@@ -831,7 +831,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
   public Path bulkLoadHFile(byte[] family, String srcPathStr, Path dstPath) throws IOException {
     Path srcPath = new Path(srcPathStr);
     try {
-      fs.commitStoreFile(srcPath, dstPath);
+      fs.commitStoreFile(srcPath, dstPath); // mv到目的路径
     } finally {
       if (this.getCoprocessorHost() != null) {
         this.getCoprocessorHost().postCommitStoreFile(family, srcPath, dstPath);
