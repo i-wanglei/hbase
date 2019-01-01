@@ -119,8 +119,8 @@ public class MasterFileSystem {
     this.secureRootSubDirPerms = new FsPermission(conf.get("hbase.rootdir.perms", "700"));
     this.isSecurityEnabled = "kerberos".equalsIgnoreCase(conf.get("hbase.security.authentication"));
     // setup the filesystem variable
-    createInitialFileSystemLayout();
-    HFileSystem.addLocationsOrderInterceptor(conf);
+    createInitialFileSystemLayout(); // 检查并创建hbase目录结构
+    HFileSystem.addLocationsOrderInterceptor(conf); // 重新排列hlog的block顺序
   }
 
   /**
@@ -148,12 +148,12 @@ public class MasterFileSystem {
       WALProcedureStore.MASTER_PROCEDURE_LOGDIR
     };
     // check if the root directory exists
-    checkRootDir(this.rootdir, conf, this.fs);
+    checkRootDir(this.rootdir, conf, this.fs); // 检查并创建root目录、meta region目录、version文件等
 
     // Check the directories under rootdir.
-    checkTempDir(this.tempdir, conf, this.fs);
+    checkTempDir(this.tempdir, conf, this.fs); // 检查并创建tmp目录
     for (String subDir : protectedSubDirs) {
-      checkSubDir(new Path(this.rootdir, subDir), HBASE_DIR_PERMS);
+      checkSubDir(new Path(this.rootdir, subDir), HBASE_DIR_PERMS); // 检查并创建
     }
 
     final String perms;
@@ -166,7 +166,7 @@ public class MasterFileSystem {
       checkSubDir(new Path(this.walRootDir, subDir), perms);
     }
 
-    checkStagingDir();
+    checkStagingDir(); // 检查并创建staging目录
 
     // Handle the last few special files and set the final rootDir permissions
     // rootDir needs 'x' for all to support bulk load staging dir
@@ -241,7 +241,7 @@ public class MasterFileSystem {
     // Filesystem is good. Go ahead and check for hbase.rootdir.
     try {
       if (!fs.exists(rd)) {
-        fs.mkdirs(rd);
+        fs.mkdirs(rd); // 创建root目录
         // DFS leaves safe mode with 0 DNs when there are 0 blocks.
         // We used to handle this by checking the current DN count and waiting until
         // it is nonzero. With security, the check for datanode count doesn't work --
@@ -251,7 +251,7 @@ public class MasterFileSystem {
         // already been caught by mkdirs above.
         FSUtils.setVersion(fs, rd, c.getInt(HConstants.THREAD_WAKE_FREQUENCY,
           10 * 1000), c.getInt(HConstants.VERSION_FILE_WRITE_ATTEMPTS,
-            HConstants.DEFAULT_VERSION_FILE_WRITE_ATTEMPTS));
+            HConstants.DEFAULT_VERSION_FILE_WRITE_ATTEMPTS)); // 创建version文件
       } else {
         if (!fs.isDirectory(rd)) {
           throw new IllegalArgumentException(rd.toString() + " is not a directory");
@@ -259,7 +259,7 @@ public class MasterFileSystem {
         // as above
         FSUtils.checkVersion(fs, rd, true, c.getInt(HConstants.THREAD_WAKE_FREQUENCY,
           10 * 1000), c.getInt(HConstants.VERSION_FILE_WRITE_ATTEMPTS,
-            HConstants.DEFAULT_VERSION_FILE_WRITE_ATTEMPTS));
+            HConstants.DEFAULT_VERSION_FILE_WRITE_ATTEMPTS)); // 检查version是否和期望的一致
       }
     } catch (DeserializationException de) {
       LOG.error(HBaseMarkers.FATAL, "Please fix invalid configuration for "
@@ -281,7 +281,7 @@ public class MasterFileSystem {
 
     // Make sure the meta region directory exists!
     if (!FSUtils.metaRegionExists(fs, rd)) {
-      bootstrap(rd, c);
+      bootstrap(rd, c); // 创建meta region
     }
 
     // Create tableinfo-s for hbase:meta if not already there.
@@ -306,7 +306,7 @@ public class MasterFileSystem {
       // if not the cleaner will take care of them.
       for (Path tabledir: FSUtils.getTableDirs(fs, tmpdir)) {
         for (Path regiondir: FSUtils.getRegionDirs(fs, tabledir)) {
-          HFileArchiver.archiveRegion(fs, this.rootdir, tabledir, regiondir);
+          HFileArchiver.archiveRegion(fs, this.rootdir, tabledir, regiondir); // 把tmp目录中的hfile 移动到archive目录？
         }
       }
       if (!fs.delete(tmpdir, true)) {
@@ -390,7 +390,7 @@ public class MasterFileSystem {
       // Enable after.
       TableDescriptor metaDescriptor = new FSTableDescriptors(c).get(TableName.META_TABLE_NAME);
       HRegion meta = HRegion.createHRegion(RegionInfoBuilder.FIRST_META_REGIONINFO, rd,
-          c, setInfoFamilyCachingForMeta(metaDescriptor, false), null);
+          c, setInfoFamilyCachingForMeta(metaDescriptor, false), null); // 创建meta region
       meta.close();
     } catch (IOException e) {
         e = e instanceof RemoteException ?

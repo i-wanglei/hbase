@@ -164,7 +164,7 @@ public class ActiveMasterManager extends ZKListener {
       // Write out our ServerName as versioned bytes.
       try {
         if (MasterAddressTracker.setMasterAddress(this.watcher,
-            this.watcher.znodePaths.masterAddressZNode, this.sn, infoPort)) {
+            this.watcher.znodePaths.masterAddressZNode, this.sn, infoPort)) { // 谁先创建成功master znode，则谁成为主
 
           // If we were a backup master before, delete our ZNode from the backup
           // master directory since we are the active now)
@@ -222,7 +222,7 @@ public class ActiveMasterManager extends ZKListener {
         return false;
       }
       synchronized (this.clusterHasActiveMaster) {
-        while (clusterHasActiveMaster.get() && !master.isStopped()) {
+        while (clusterHasActiveMaster.get() && !master.isStopped()) { // backup master节点将一直阻塞在这里
           try {
             clusterHasActiveMaster.wait(checkInterval);
           } catch (InterruptedException e) {

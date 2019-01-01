@@ -265,7 +265,7 @@ public class HMaster extends HRegionServer implements MasterServices {
           Thread.sleep(timeout);
           if (master.isInitialized()) {
             LOG.debug("Initialization completed within allotted tolerance. Monitor exiting.");
-          } else {
+          } else { // 15分钟master还未初始化完成
             LOG.error("Master failed to complete initialization after " + timeout + "ms. Please"
                 + " consider submitting a bug report including a thread dump of this process.");
             if (haltOnTimeout) {
@@ -953,7 +953,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     getChoreService().scheduleChore(catalogJanitorChore);
 
     status.setStatus("Starting cluster schema service");
-    initClusterSchemaService();
+    initClusterSchemaService(); // 启动TableNamespaceManager
 
     if (this.cpHost != null) {
       try {
@@ -1001,7 +1001,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     zooKeeper.checkAndSetZNodeAcls();
 
     status.setStatus("Initializing MOB Cleaner");
-    initMobCleaner();
+    initMobCleaner(); // TODOWXY
 
     status.setStatus("Calling postStartMaster coprocessors");
     if (this.cpHost != null) {
@@ -2066,7 +2066,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     * this node for us since it is ephemeral.
     */
     LOG.info("Adding backup master ZNode " + backupZNode);
-    if (!MasterAddressTracker.setMasterAddress(zooKeeper, backupZNode, serverName, infoPort)) {
+    if (!MasterAddressTracker.setMasterAddress(zooKeeper, backupZNode, serverName, infoPort)) { // 创建backup znode
       LOG.warn("Failed create of " + backupZNode + " by " + serverName);
     }
     this.activeMasterManager.setInfoPort(infoPort);

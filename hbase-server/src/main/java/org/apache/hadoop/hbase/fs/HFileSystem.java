@@ -343,6 +343,7 @@ public class HFileSystem extends FilterFileSystem {
         return false;
       }
 
+      // 反射namenode.getBlockLocations()方法，对block顺序重新排列
       ClientProtocol cp1 = createReorderingProxy(namenode, lrb, conf);
       nf.set(dfsc, cp1);
       LOG.info("Added intercepting call to namenode#getBlockLocations so can do block reordering" +
@@ -418,6 +419,8 @@ public class HFileSystem extends FilterFileSystem {
    * as the original regionserver which created these files. This because we fear that the
    * datanode is actually dead, so if we use it it will timeout.
    */
+  // 如果是hlog文件，将会把和regionserver同节点DN上的block放在LocatedBlocks数组的最后
+  // 为什么要这么做？
   static class ReorderWALBlocks implements ReorderBlocks {
     @Override
     public void reorderBlocks(Configuration conf, LocatedBlocks lbs, String src)

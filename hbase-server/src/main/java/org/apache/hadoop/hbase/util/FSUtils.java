@@ -423,7 +423,7 @@ public abstract class FSUtils extends CommonFSUtils {
   throws IOException, DeserializationException {
     String version = getVersion(fs, rootdir);
     if (version == null) {
-      if (!metaRegionExists(fs, rootdir)) {
+      if (!metaRegionExists(fs, rootdir)) { // 检查meta region是否存在
         // rootDir is empty (no version file and no root region)
         // just create new version file (HBASE-1195)
         setVersion(fs, rootdir, wait, retries);
@@ -442,7 +442,7 @@ public abstract class FSUtils extends CommonFSUtils {
     if (message) {
       System.out.println("WARNING! " + msg);
     }
-    throw new FileSystemVersionException(msg);
+    throw new FileSystemVersionException(msg); // 如果存在的version和期望的不一样将抛异常
   }
 
   /**
@@ -639,7 +639,7 @@ public abstract class FSUtils extends CommonFSUtils {
    * @throws IOException if writing to the FileSystem fails and no wait value
    */
   public static void setClusterId(FileSystem fs, Path rootdir, ClusterId clusterId,
-      int wait) throws IOException {
+      int wait) throws IOException { // 创建clusterId文件
     while (true) {
       try {
         Path idFile = new Path(rootdir, HConstants.CLUSTER_ID_FILE_NAME);
