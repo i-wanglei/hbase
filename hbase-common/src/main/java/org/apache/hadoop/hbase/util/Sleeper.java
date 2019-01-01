@@ -93,7 +93,7 @@ public class Sleeper {
         }
         woke = System.currentTimeMillis();
         long slept = woke - now;
-        if (slept - this.period > MINIMAL_DELTA_FOR_LOGGING) {
+        if (slept - this.period > MINIMAL_DELTA_FOR_LOGGING) { // 是否有长时间的JVM STW
           LOG.warn("We slept " + slept + "ms instead of " + this.period +
               "ms, this is likely due to a long " +
               "garbage collecting pause and it's usually bad, see " +

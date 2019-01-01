@@ -107,7 +107,7 @@ public class HFileSystem extends FilterFileSystem {
       conf = new Configuration(conf);
       conf.setBoolean("dfs.client.read.shortcircuit.skip.checksum", true);
       this.noChecksumFs = maybeWrapFileSystem(newInstanceFileSystem(conf), conf);
-      this.noChecksumFs.setVerifyChecksum(false);
+      this.noChecksumFs.setVerifyChecksum(false); // 关闭haoop客户端的checksum检查，hbase自己做checksum
     } else {
       this.noChecksumFs = maybeWrapFileSystem(fs, conf);
     }

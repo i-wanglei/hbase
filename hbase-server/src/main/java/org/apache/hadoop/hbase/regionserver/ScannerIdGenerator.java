@@ -48,6 +48,7 @@ public class ScannerIdGenerator {
     this.serverNameHash = hash << 32;
   }
 
+  // 生成scanner id
   public long generateNewScannerId() {
     return (scannerIdGen.incrementAndGet() & 0x00000000FFFFFFFFL) | serverNameHash;
   }

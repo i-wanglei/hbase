@@ -520,13 +520,13 @@ public class HRegionServer extends HasThread implements
     super("RegionServer");  // thread name
     TraceUtil.initTracer(conf);
     try {
-      this.startcode = System.currentTimeMillis();
+      this.startcode = System.currentTimeMillis(); // startcode为启动时的时间
       this.conf = conf;
       this.fsOk = true;
       this.masterless = conf.getBoolean(MASTERLESS_CONFIG_NAME, false);
       this.eventLoopGroupConfig = setupNetty(this.conf);
-      MemorySizeUtil.checkForClusterFreeHeapMemoryLimit(this.conf);
-      HFile.checkHFileVersion(this.conf);
+      MemorySizeUtil.checkForClusterFreeHeapMemoryLimit(this.conf); // memstore和blockCache最多只能用80%的堆内存
+      HFile.checkHFileVersion(this.conf); // 确保hfile配置的version为3
       checkCodecs(this.conf); // 检查编解码器
       this.userProvider = UserProvider.instantiate(conf);
       FSUtils.setupShortCircuitRead(this.conf); // 短读相关检查和操作
@@ -600,10 +600,10 @@ public class HRegionServer extends HasThread implements
           this.csm = new ZkCoordinatedStateManager(this);
 
           masterAddressTracker = new MasterAddressTracker(getZooKeeper(), this);
-          masterAddressTracker.start();
+          masterAddressTracker.start(); // 监听ZK，获取最新的master地址
 
           clusterStatusTracker = new ClusterStatusTracker(zooKeeper, this);
-          clusterStatusTracker.start();
+          clusterStatusTracker.start(); // 监听ZK，获取集群状态
         } else {
           masterAddressTracker = null;
           clusterStatusTracker = null;
@@ -613,7 +613,7 @@ public class HRegionServer extends HasThread implements
         masterAddressTracker = null;
         clusterStatusTracker = null;
       }
-      this.rpcServices.start(zooKeeper);
+      this.rpcServices.start(zooKeeper); // 启动rpc服务
       // This violates 'no starting stuff in Constructor' but Master depends on the below chore
       // and executor being created and takes a different startup route. Lots of overlap between HRS
       // and M (An M IS A HRS now). Need to refactor so less duplication between M and its super
@@ -756,6 +756,7 @@ public class HRegionServer extends HasThread implements
    * server. Create this instance in a method can be intercepted and mocked in tests.
    * @throws IOException
    */
+  // ClusterConnection 用来集群内访问master或RS，和client创建的connection不一样
   @VisibleForTesting
   protected ClusterConnection createClusterConnection() throws IOException {
     // Create a cluster connection that when appropriate, can short-circuit and go directly to the
@@ -805,7 +806,7 @@ public class HRegionServer extends HasThread implements
   private void preRegistrationInitialization() {
     try {
       initializeZooKeeper();
-      setupClusterConnection();
+      setupClusterConnection(); // 创建ClusterConnection对象
       // Setup RPC client for master communication
       this.rpcClient = RpcClientFactory.createClient(conf, clusterId, new InetSocketAddress(
           this.rpcServices.isa.getAddress(), 0), clusterConnection.getConnectionMetrics());
@@ -834,11 +835,11 @@ public class HRegionServer extends HasThread implements
     // Create the master address tracker, register with zk, and start it.  Then
     // block until a master is available.  No point in starting up if no master
     // running.
-    blockAndCheckIfStopped(this.masterAddressTracker);
+    blockAndCheckIfStopped(this.masterAddressTracker); // 等待master启动
 
     // Wait on cluster being up.  Master will set this flag up in zookeeper
     // when ready.
-    blockAndCheckIfStopped(this.clusterStatusTracker);
+    blockAndCheckIfStopped(this.clusterStatusTracker); // 等待集群启动
 
     // If we are HMaster then the cluster id should have already been set.
     if (clusterId == null) {
@@ -846,7 +847,7 @@ public class HRegionServer extends HasThread implements
       // Since cluster status is now up
       // ID should have already been set by HMaster
       try {
-        clusterId = ZKClusterId.readClusterIdZNode(this.zooKeeper);
+        clusterId = ZKClusterId.readClusterIdZNode(this.zooKeeper); // 从ZK获取clusterId
         if (clusterId == null) {
           this.abort("Cluster ID has not been set");
         }
@@ -867,7 +868,7 @@ public class HRegionServer extends HasThread implements
 
     // watch for snapshots and other procedures
     try {
-      rspmHost = new RegionServerProcedureManagerHost();
+      rspmHost = new RegionServerProcedureManagerHost(); // regionServer procedure？干什么用的？
       rspmHost.loadProcedures(conf);
       rspmHost.initialize(this);
     } catch (KeeperException e) {
@@ -907,7 +908,7 @@ public class HRegionServer extends HasThread implements
   public void run() {
     try {
       // Do pre-registration initializations; zookeeper, lease threads, etc.
-      preRegistrationInitialization();
+      preRegistrationInitialization(); // 检查master是否启动，创建连接对象等
     } catch (Throwable e) {
       abort("Fatal exception during initialization", e);
     }
@@ -924,12 +925,12 @@ public class HRegionServer extends HasThread implements
       // server is stopped or the clusterup flag is down or hdfs went wacky.
       // Once registered successfully, go ahead and start up all Services.
       while (keepLooping()) {
-        RegionServerStartupResponse w = reportForDuty();
+        RegionServerStartupResponse w = reportForDuty(); // 发消息向master注册
         if (w == null) {
           LOG.warn("reportForDuty failed; sleeping and then retrying.");
           this.sleeper.sleep();
         } else {
-          handleReportForDutyResponse(w);
+          handleReportForDutyResponse(w); // 创建zk node，启动各种线程
           break;
         }
       }
@@ -953,14 +954,14 @@ public class HRegionServer extends HasThread implements
       long lastMsg = System.currentTimeMillis();
       long oldRequestCount = -1;
       // The main run loop.
-      while (!isStopped() && isHealthy()) {
-        if (!isClusterUp()) {
+      while (!isStopped() && isHealthy()) { // 一直循环，直到shutdown
+        if (!isClusterUp()) { // 检查集群状态是否正常
           if (isOnlineRegionsEmpty()) {
             stop("Exiting; cluster shutdown set and not carrying any regions");
           } else if (!this.stopping) {
             this.stopping = true;
             LOG.info("Closing user regions");
-            closeUserRegions(this.abortRequested);
+            closeUserRegions(this.abortRequested); // 关闭用户表region
           } else if (this.stopping) {
             boolean allUserRegionsOffline = areAllUserRegionsOffline();
             if (allUserRegionsOffline) {
@@ -983,7 +984,7 @@ public class HRegionServer extends HasThread implements
         }
         long now = System.currentTimeMillis();
         if ((now - lastMsg) >= msgInterval) {
-          tryRegionServerReport(lastMsg, now);
+          tryRegionServerReport(lastMsg, now); // 默认每3秒，向master汇报一次负载信息
           lastMsg = System.currentTimeMillis();
         }
         if (!isStopped() && !isAborted()) {
@@ -996,6 +997,7 @@ public class HRegionServer extends HasThread implements
         abort(prefix + t.getMessage(), t);
       }
     }
+    // 关闭流程
     if (this.leases != null) {
       this.leases.closeAfterLeasesExpire();
     }
@@ -1166,12 +1168,12 @@ public class HRegionServer extends HasThread implements
       // the current server could be stopping.
       return;
     }
-    ClusterStatusProtos.ServerLoad sl = buildServerLoad(reportStartTime, reportEndTime);
+    ClusterStatusProtos.ServerLoad sl = buildServerLoad(reportStartTime, reportEndTime); // 构造负载信息
     try {
       RegionServerReportRequest.Builder request = RegionServerReportRequest.newBuilder();
       request.setServer(ProtobufUtil.toServerName(this.serverName));
       request.setLoad(sl);
-      rss.regionServerReport(null, request.build());
+      rss.regionServerReport(null, request.build()); // 向master汇报负载
     } catch (ServiceException se) {
       IOException ioe = ProtobufUtil.getRemoteException(se);
       if (ioe instanceof YouAreDeadException) {
@@ -1270,10 +1272,10 @@ public class HRegionServer extends HasThread implements
     // improved; Additionally the load balancer will be able to take advantage of a more complete
     // history.
     MetricsRegionServerWrapper regionServerWrapper = metricsRegionServer.getRegionServerWrapper();
-    Collection<HRegion> regions = getOnlineRegionsLocalContext();
+    Collection<HRegion> regions = getOnlineRegionsLocalContext(); // 此RS所有online region列表
     long usedMemory = -1L;
     long maxMemory = -1L;
-    final MemoryUsage usage = MemorySizeUtil.safeGetHeapMemoryUsage();
+    final MemoryUsage usage = MemorySizeUtil.safeGetHeapMemoryUsage(); // 堆使用情况
     if (usage != null) {
       usedMemory = usage.getUsed();
       maxMemory = usage.getMax();
@@ -1286,7 +1288,7 @@ public class HRegionServer extends HasThread implements
     serverLoad.setMaxHeapMB((int) (maxMemory / 1024 / 1024));
     Set<String> coprocessors = getWAL(null).getCoprocessorHost().getCoprocessors();
     Builder coprocessorBuilder = Coprocessor.newBuilder();
-    for (String coprocessor : coprocessors) {
+    for (String coprocessor : coprocessors) { // 此RS加载的协处理器
       serverLoad.addCoprocessors(coprocessorBuilder.setName(coprocessor).build());
     }
     RegionLoad.Builder regionLoadBldr = RegionLoad.newBuilder();
@@ -1299,7 +1301,7 @@ public class HRegionServer extends HasThread implements
           serverLoad.addCoprocessors(coprocessorBuilder.setName(iterator.next()).build());
         }
       }
-      serverLoad.addRegionLoads(createRegionLoad(region, regionLoadBldr, regionSpecifier));
+      serverLoad.addRegionLoads(createRegionLoad(region, regionLoadBldr, regionSpecifier)); // region信息
       for (String coprocessor : getWAL(region.getRegionInfo()).getCoprocessorHost()
           .getCoprocessors()) {
         serverLoad.addCoprocessors(coprocessorBuilder.setName(coprocessor).build());
@@ -1436,7 +1438,7 @@ public class HRegionServer extends HasThread implements
       for (NameStringPair e : c.getMapEntriesList()) {
         String key = e.getName();
         // The hostname the master sees us as.
-        if (key.equals(HConstants.KEY_FOR_HOSTNAME_SEEN_BY_MASTER)) {
+        if (key.equals(HConstants.KEY_FOR_HOSTNAME_SEEN_BY_MASTER)) { // 检查master看到的hostname，和RS自己认为的hostname是否一致
           String hostnameFromMasterPOV = e.getValue();
           this.serverName = ServerName.valueOf(hostnameFromMasterPOV, rpcServices.isa.getPort(),
               this.startcode);
@@ -1466,14 +1468,15 @@ public class HRegionServer extends HasThread implements
         if (LOG.isDebugEnabled()) {
           LOG.debug("Config from master: " + key + "=" + value);
         }
+        // 使用master的配置 更新RS内存中的值
         this.conf.set(key, value);
       }
       // Set our ephemeral znode up in zookeeper now we have a name.
-      createMyEphemeralNode();
+      createMyEphemeralNode(); // 创建此RS的zk node
 
       if (updateRootDir) {
         // initialize file system by the config fs.defaultFS and hbase.rootdir from master
-        initializeFileSystem();
+        initializeFileSystem(); // master和RS的hdfs rootDir配的不一样，重新初始化FS
       }
 
       // hack! Maps DFSClient => RegionServer for logs.  HDFS made this
@@ -1497,7 +1500,7 @@ public class HRegionServer extends HasThread implements
 
       // There is a rare case where we do NOT want services to start. Check config.
       if (getConfiguration().getBoolean("hbase.regionserver.workers", true)) {
-        startServices();
+        startServices(); // 启动各种线程池
       }
       // In here we start up the replication Service. Above we initialized it. TODO. Reconcile.
       // or make sense of it.
@@ -1991,7 +1994,7 @@ public class HRegionServer extends HasThread implements
       addr = this.conf.get("hbase.master.info.bindAddress", "0.0.0.0");
     }
     // -1 is for disabling info server
-    if (port < 0) return port;
+    if (port < 0) return port; // -1 代表不启动web info服务
 
     if (!Addressing.isLocalAddress(InetAddress.getByName(addr))) {
       String msg =
@@ -2469,7 +2472,7 @@ public class HRegionServer extends HasThread implements
     boolean interrupted = false;
     try {
       while (keepLooping()) {
-        sn = this.masterAddressTracker.getMasterAddress(refresh);
+        sn = this.masterAddressTracker.getMasterAddress(refresh); // master地址
         if (sn == null) {
           if (!keepLooping()) {
             // give up with no connection.
@@ -2543,7 +2546,7 @@ public class HRegionServer extends HasThread implements
    */
   private RegionServerStartupResponse reportForDuty() throws IOException {
     if (this.masterless) return RegionServerStartupResponse.getDefaultInstance();
-    ServerName masterServerName = createRegionServerStatusStub(true);
+    ServerName masterServerName = createRegionServerStatusStub(true); // 创建到master的连接
     if (masterServerName == null) return null;
     RegionServerStartupResponse result = null;
     try {
@@ -2563,7 +2566,7 @@ public class HRegionServer extends HasThread implements
       request.setPort(port);
       request.setServerStartCode(this.startcode);
       request.setServerCurrentTime(now);
-      result = this.rssStub.regionServerStartup(null, request.build());
+      result = this.rssStub.regionServerStartup(null, request.build()); // 向master注册
     } catch (ServiceException se) {
       IOException ioe = ProtobufUtil.getRemoteException(se);
       if (ioe instanceof ClockOutOfSyncException) {

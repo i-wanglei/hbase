@@ -1686,7 +1686,7 @@ public abstract class FSUtils extends CommonFSUtils {
    * Check if short circuit read buffer size is set and if not, set it to hbase value.
    * @param conf
    */
-  public static void checkShortCircuitReadBufferSize(final Configuration conf) {
+  public static void checkShortCircuitReadBufferSize(final Configuration conf) { // 检查并设置短读buffer
     final int defaultSize = HConstants.DEFAULT_BLOCKSIZE * 2;
     final int notSet = -1;
     // DFSConfigKeys.DFS_CLIENT_READ_SHORTCIRCUIT_BUFFER_SIZE_KEY is only defined in h2

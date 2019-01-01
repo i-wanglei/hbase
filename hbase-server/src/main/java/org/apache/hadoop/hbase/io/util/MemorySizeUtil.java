@@ -66,7 +66,7 @@ public class MemorySizeUtil {
    *         could also get -1 values back from the JVM)
    * @see MemoryUsage
    */
-  public static MemoryUsage safeGetHeapMemoryUsage() {
+  public static MemoryUsage safeGetHeapMemoryUsage() { // 堆使用情况
     MemoryUsage usage = null;
     try {
       usage = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
@@ -81,7 +81,7 @@ public class MemorySizeUtil {
    * We need atleast 20% of heap left out for other RS functions.
    * @param conf
    */
-  public static void checkForClusterFreeHeapMemoryLimit(Configuration conf) {
+  public static void checkForClusterFreeHeapMemoryLimit(Configuration conf) { // memstore和blockCache最多只能用80%的堆内存
     if (conf.get(MEMSTORE_SIZE_OLD_KEY) != null) {
       LOG.warn(MEMSTORE_SIZE_OLD_KEY + " is deprecated by " + MEMSTORE_SIZE_KEY);
     }

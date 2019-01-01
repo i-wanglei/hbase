@@ -85,7 +85,7 @@ public class HBaseConfiguration extends Configuration {
    * Creates a Configuration with HBase resources
    * @return a Configuration with HBase resources
    */
-  public static Configuration create() {
+  public static Configuration create() { // 初始化配置
     Configuration conf = new Configuration();
     // In case HBaseConfiguration is loaded from a different classloader than
     // Configuration, conf needs to be set with appropriate class loader to resolve

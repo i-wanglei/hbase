@@ -35,7 +35,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ZooKeeperProtos;
  *
  */
 @InterfaceAudience.Private
-public class ClusterStatusTracker extends ZKNodeTracker {
+public class ClusterStatusTracker extends ZKNodeTracker {  // 监听ZK(/hbase/running)，获取集群状态
   private static final Logger LOG = LoggerFactory.getLogger(ClusterStatusTracker.class);
 
   /**

@@ -198,7 +198,7 @@ public class ServerManager {
       request.getServerStartCode());
     checkClockSkew(sn, request.getServerCurrentTime());
     checkIsDead(sn, "STARTUP");
-    if (!checkAndRecordNewServer(sn, ServerMetricsBuilder.of(sn, versionNumber))) {
+    if (!checkAndRecordNewServer(sn, ServerMetricsBuilder.of(sn, versionNumber))) { // 添加到online列表
       LOG.warn("THIS SHOULD NOT HAPPEN, RegionServerStartup"
         + " could not record the server: " + sn);
     }
@@ -335,7 +335,7 @@ public class ServerManager {
    * @throws ClockOutOfSyncException if the skew exceeds the configured max value
    */
   private void checkClockSkew(final ServerName serverName, final long serverCurrentTime)
-      throws ClockOutOfSyncException {
+      throws ClockOutOfSyncException { // 判断RS和master的系统时间是否相差太大
     long skew = Math.abs(System.currentTimeMillis() - serverCurrentTime);
     if (skew > maxSkew) {
       String message = "Server " + serverName + " has been " +
@@ -370,7 +370,7 @@ public class ServerManager {
     // remove dead server with same hostname and port of newly checking in rs after master
     // initialization.See HBASE-5916 for more information.
     if ((this.master == null || this.master.isInitialized())
-        && this.deadservers.cleanPreviousInstance(serverName)) {
+        && this.deadservers.cleanPreviousInstance(serverName)) { // RS的startcode变化了，说明此RS重启了
       // This server has now become alive after we marked it as dead.
       // We removed it's previous entry from the dead list to reflect it.
       LOG.debug(what + ":" + " Server " + serverName + " came back up," +

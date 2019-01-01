@@ -109,7 +109,7 @@ public final class ConnectionUtils {
    * @param log Used to log what we set in here.
    */
   public static void setServerSideHConnectionRetriesConfig(final Configuration c, final String sn,
-      final Logger log) {
+      final Logger log) { // server端的重试次数需要再乘一个系数
     // TODO: Fix this. Not all connections from server side should have 10 times the retries.
     int hcRetries = c.getInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER,
       HConstants.DEFAULT_HBASE_CLIENT_RETRIES_NUMBER);

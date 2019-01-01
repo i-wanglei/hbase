@@ -1221,7 +1221,7 @@ public class RSRpcServices implements HBaseRPCErrorHandler,
     if (initialIsa.getAddress() == null) {
       throw new IllegalArgumentException("Failed resolve of " + initialIsa);
     }
-    priority = createPriority();
+    priority = createPriority(); // 请求优先级
     // Using Address means we don't get the IP too. Shorten it more even to just the host name
     // w/o the domain.
     String name = rs.getProcessName() + "/" +

@@ -52,7 +52,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.ZooKeeperProtos;
  * writing and reading the znode content.
  */
 @InterfaceAudience.Private
-public class MasterAddressTracker extends ZKNodeTracker {
+public class MasterAddressTracker extends ZKNodeTracker { // 监听ZK(/hbase/master)，获取最新的master地址
   /**
    * Construct a master address listener with the specified
    * <code>zookeeper</code> reference.

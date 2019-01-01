@@ -504,7 +504,6 @@ public class HMaster extends HRegionServer implements MasterServices {
 
       // Do we publish the status?
 
-      // publish干什么用的？
       boolean shouldPublish = conf.getBoolean(HConstants.STATUS_PUBLISHED,
           HConstants.STATUS_PUBLISHED_DEFAULT);
       Class<? extends ClusterStatusPublisher.Publisher> publisherClass =
@@ -518,6 +517,7 @@ public class HMaster extends HRegionServer implements MasterServices {
               ClusterStatusPublisher.DEFAULT_STATUS_PUBLISHER_CLASS +
               " is not set - not publishing status");
         } else {
+          // 周期发送cluster metric信息到特定服务？
           clusterStatusPublisherChore = new ClusterStatusPublisher(this, conf, publisherClass);
           getChoreService().scheduleChore(clusterStatusPublisherChore);
         }
@@ -551,7 +551,7 @@ public class HMaster extends HRegionServer implements MasterServices {
         Threads.setDaemonThreadRunning(new Thread(() -> {
           try {
             int infoPort = putUpJettyServer(); // 启动web info服务
-            startActiveMasterManager(infoPort);
+            startActiveMasterManager(infoPort); // 竞争成主，并初始化master
           } catch (Throwable t) {
             // Make sure we log the exception.
             String error = "Failed to become Active Master";
@@ -565,7 +565,7 @@ public class HMaster extends HRegionServer implements MasterServices {
       }
       // Fall in here even if we have been aborted. Need to run the shutdown services and
       // the super run call will do this for us.
-      super.run();
+      super.run(); // 初始化RS逻辑
     } finally {
       if (this.clusterSchemaService != null) {
         // If on way out, then we are no longer active master.
@@ -2774,7 +2774,7 @@ public class HMaster extends HRegionServer implements MasterServices {
     }
     if (this.clusterStatusTracker != null) {
       try {
-        this.clusterStatusTracker.setClusterDown();
+        this.clusterStatusTracker.setClusterDown(); // 删除znode：/hbase/running
       } catch (KeeperException e) {
         LOG.error("ZooKeeper exception trying to set cluster as down in ZK", e);
       }
@@ -3666,7 +3666,7 @@ public class HMaster extends HRegionServer implements MasterServices {
    * This method modifies the master's configuration in order to inject replication-related features
    */
   @VisibleForTesting
-  public static void decorateMasterConfiguration(Configuration conf) {
+  public static void decorateMasterConfiguration(Configuration conf) { // 确保ReplicationLogCleaner和ReplicationHFileCleaner被添加到plugin中
     String plugins = conf.get(HBASE_MASTER_LOGCLEANER_PLUGINS);
     String cleanerClass = ReplicationLogCleaner.class.getCanonicalName();
     if (!plugins.contains(cleanerClass)) {

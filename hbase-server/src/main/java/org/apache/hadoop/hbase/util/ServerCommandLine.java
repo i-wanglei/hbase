@@ -111,8 +111,10 @@ public abstract class ServerCommandLine extends Configured implements Tool {
    * to comma separated list of such substrings.
    */
   public static void logProcessInfo(Configuration conf) {
+    // step 1: 打印关键HBASE配置
     logHBaseConfigs(conf);
 
+    // step 2: 打印系统环境变量
     // log environment variables unless asked not to
     if (conf == null || !conf.getBoolean("hbase.envvars.logging.disabled", false)) {
       Set<String> skipWords = new HashSet<>(DEFAULT_SKIP_WORDS);
@@ -136,6 +138,7 @@ public abstract class ServerCommandLine extends Configured implements Tool {
       }
     }
 
+    // step 3: 打印JVM信息
     // and JVM info
     logJVMInfo();
   }

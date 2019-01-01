@@ -113,6 +113,7 @@ public class HMasterCommandLine extends ServerCommandLine {
       getConf().setBoolean(HConstants.MASTER_TYPE_BACKUP, true);
     }
 
+    // 当测试的时候，我们可以在一个进程里启动多个RS和master？
     // How many regionservers to startup in this process (we run regionservers in same process as
     // master when we are in local/standalone mode. Useful testing)
     if (cmd.hasOption("localRegionServers")) {
@@ -257,7 +258,7 @@ public class HMasterCommandLine extends ServerCommandLine {
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 0);
     try (Connection connection = ConnectionFactory.createConnection(conf)) {
       try (Admin admin = connection.getAdmin()) {
-        admin.shutdown();
+        admin.shutdown(); // 调用master的shutdown接口
       } catch (Throwable t) {
         LOG.error("Failed to stop master", t);
         return 1;
