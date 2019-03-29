@@ -50,6 +50,17 @@ import org.apache.hadoop.hbase.exceptions.DeserializationException;
  * you reduce boilerplate.
  *
  * @see FilterBase
+ *
+ *
+ * 执行顺序
+ * 1、filterRowKey：首先检查row key，确定是否需要处理此行的cell
+ * 2、filterCell(filterKeyValue)：检查此行的每一个cell，根据ReturnCode决定下一步该如何做
+ * 3、transformCell：每个cell检查完之后，可以调用此方法做一些修改操作
+ * 4、filterRowCells：此行所有cell遍历完之后，调用此方法做一些修改操作
+ * 5、filterRow：此行所有cell遍历完之后，调用此方法
+ * 6、reset：本行处理结束，加载完下一行（还未开始遍历），调用此方法
+ * 7、filterAllRemaining：是否结束整个查找过程
+ *
  */
 @InterfaceAudience.Public
 public abstract class Filter {
@@ -237,7 +248,7 @@ public abstract class Filter {
    * 
    * @return True if this filter actively uses filterRowCells(List) or filterRow().
    */
-  abstract public boolean hasFilterRow();
+  abstract public boolean hasFilterRow(); // 是否调用 filterRowCells(List) or filterRow() 方法
 
   /**
    * Last chance to veto row based on previous {@link #filterCell(Cell)} calls. The filter

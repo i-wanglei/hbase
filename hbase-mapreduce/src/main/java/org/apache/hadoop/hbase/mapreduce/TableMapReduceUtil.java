@@ -368,10 +368,10 @@ public class TableMapReduceUtil {
       Class<?> outputValueClass, Job job,
       boolean addDependencyJars, Path tmpRestoreDir)
       throws IOException {
-    TableSnapshotInputFormat.setInput(job, snapshotName, tmpRestoreDir);
+    TableSnapshotInputFormat.setInput(job, snapshotName, tmpRestoreDir); // 设置conf
     initTableMapperJob(snapshotName, scan, mapper, outputKeyClass, outputValueClass, job,
-      addDependencyJars, false, TableSnapshotInputFormat.class);
-    resetCacheConfig(job.getConfiguration());
+      addDependencyJars, false, TableSnapshotInputFormat.class); // 设置job
+    resetCacheConfig(job.getConfiguration()); // 设置cache相关conf
   }
 
   /**
@@ -705,7 +705,7 @@ public class TableMapReduceUtil {
   public static void initTableReducerJob(String table,
     Class<? extends TableReducer> reducer, Job job,
     Class partitioner, String quorumAddress, String serverClass,
-    String serverImpl, boolean addDependencyJars) throws IOException {
+    String serverImpl, boolean addDependencyJars) throws IOException { // 设置conf和job
 
     Configuration conf = job.getConfiguration();
     HBaseConfiguration.merge(conf, HBaseConfiguration.create(conf));
